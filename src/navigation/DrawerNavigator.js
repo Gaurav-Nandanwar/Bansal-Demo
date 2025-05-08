@@ -18,7 +18,7 @@ import { DrawerItem } from '@react-navigation/drawer';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 
-import HomeScreen from '../screens/HomeScreen';
+import HomeTabs from '../navigation/HomeTabs';
 import FeesScreen from '../screens/FeesScreen';
 import TimetableScreen from '../screens/TimetableScreen';
 import CalendarScreen from '../screens/CalendarScreen';
@@ -128,7 +128,7 @@ const DrawerNavigator = () => {
       }}
       drawerContent={(props) => <CustomDrawerContent {...props} />}
     >
-      <Drawer.Screen name="Home" component={HomeScreen} />
+      <Drawer.Screen name="Home" component={HomeTabs} />
       <Drawer.Screen name="Fees" component={FeesScreen} />
       <Drawer.Screen name="Timetable" component={TimetableScreen} />
       <Drawer.Screen name="Calendar" component={CalendarScreen} />
