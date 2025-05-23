@@ -8,11 +8,9 @@ import {
   Image,
   Alert,
   Modal,
-  Platform
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import axios from 'axios';
-import { useAuth } from '../context/AuthContext';
 import { Picker } from '@react-native-picker/picker';
 
 const LoginScreen = () => {
@@ -23,38 +21,26 @@ const LoginScreen = () => {
   const [inputValue, setInputValue] = useState('');
 
   const navigation = useNavigation();
-  const { setUserData } = useAuth();
 
-  const handleLogin = async () => {
+  const handleLogin = () => {
     if (!email || !password) {
       Alert.alert('Please enter both email and password');
       return;
     }
 
-    try {
-      const response = await axios.post('https://api.stpl.cloud/login', {
-        username: email,
-        password: password
-      });
-
-      if (response.data?.student_parent_details) {
-        setUserData(response.data.student_parent_details);
-        navigation.replace('Dashboard');
-      } else {
-        Alert.alert('Login failed', response.data.message || 'Unknown error');
-      }
-    } catch (error) {
-      console.error(error);
-      Alert.alert('Login error', 'Please check your credentials or network.');
-    }
+    // Dummy login logic - you can log in with any credentials
+    Alert.alert('Login Success', `Welcome, ${email}`);
+    navigation.replace('Dashboard'); // Navigate to the Dashboard screen
   };
 
   const handleForgotSubmit = () => {
-    // Here you can handle the reset logic if needed
+    Alert.alert(
+      'Reset Link Sent',
+      `A reset link has been sent to your ${selectedOption === 'email' ? 'email' : 'phone number'}.`
+    );
     setForgotVisible(false);
     setSelectedOption('email');
     setInputValue('');
-    navigation.navigate('Login'); // or replace if needed
   };
 
   return (
@@ -86,7 +72,7 @@ const LoginScreen = () => {
         <Text style={styles.forgotPassword}>Forgot Password</Text>
       </TouchableOpacity>
 
-      {/* Fullscreen Forgot Password Modal */}
+      {/* Forgot Password Modal */}
       <Modal visible={forgotVisible} animationType="slide" transparent={false}>
         <View style={styles.modalContainer}>
           <Text style={styles.modalTitle}>Forgot Password</Text>
@@ -107,7 +93,9 @@ const LoginScreen = () => {
           <TextInput
             style={styles.modalInput}
             placeholder={
-              selectedOption === 'email' ? 'Enter your email' : 'Enter your phone number'
+              selectedOption === 'email'
+                ? 'Enter your email'
+                : 'Enter your phone number'
             }
             keyboardType={selectedOption === 'email' ? 'email-address' : 'numeric'}
             value={inputValue}

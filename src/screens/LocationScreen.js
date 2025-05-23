@@ -1,143 +1,191 @@
-import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  PermissionsAndroid,
-  Platform,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import Geolocation from 'react-native-geolocation-service';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, PermissionsAndroid, Platform, Alert, Linking } from 'react-native';
+import Geolocation from '@react-native-community/geolocation';
+import axios from 'axios'; // Make sure axios is installed
 
 const LocationScreen = () => {
-  const [location, setLocation] = useState(null);
-  const [time, setTime] = useState(new Date());
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const currentTime = new Date();
-      setTime(currentTime);
-      getLocationAndSend(currentTime); // Send updated data every second
-    }, 10000); // 10 seconds interval (reduce if needed)
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    requestLocationPermission();
-  }, []);
+  const [location, setLocation] = useState({
+    latitude: null,
+    longitude: null,
+    speed: null,
+  });
+  const [error, setError] = useState(null);
+  const [clock, setClock] = useState(new Date().toLocaleTimeString());
 
   const requestLocationPermission = async () => {
-    try {
-      setLoading(true);
-      if (Platform.OS === 'android') {
+    if (Platform.OS === 'android') {
+      try {
         const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'Location Permission',
+            message: 'This app needs access to your location to show real-time updates.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
         );
-        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-          getLocationAndSend(new Date());
-        } else {
-          Alert.alert('Permission Denied', 'Location permission is required.');
-          setLoading(false);
-        }
-      } else {
-        getLocationAndSend(new Date()); // iOS
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.warn('Permission error:', err);
+        return false;
       }
-    } catch (err) {
-      console.warn(err);
-      setLoading(false);
     }
+    return true;
   };
 
-  const getLocationAndSend = (currentTime) => {
-    Geolocation.getCurrentPosition(
-      (position) => {
-        const coords = position.coords;
-        setLocation(coords);
-        sendLocationToServer(coords, currentTime);
-        setLoading(false);
-      },
-      (error) => {
-        console.error('Error getting location:', error);
-        Alert.alert('Location Error', error.message);
-        setLoading(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 10000,
-        forceRequestLocation: true,
-      }
-    );
-  };
-
-  const sendLocationToServer = async (coords, currentTime) => {
-    try {
-      const response = await fetch('https://api.stpl.cloud/track_location/live_track', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+  const checkLocationServices = async () => {
+    return new Promise((resolve) => {
+      Geolocation.getCurrentPosition(
+        () => resolve(true),
+        (error) => {
+          if (error.code === 2) {
+            Alert.alert(
+              'Location Services Disabled',
+              'Please enable location services to use this feature.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Open Settings', onPress: () => Linking.openSettings() },
+              ]
+            );
+            resolve(false);
+          } else {
+            resolve(true);
+          }
         },
-        body: JSON.stringify({
-          school_id: 0,
-          bus_id: 0,
-          latitude: coords.latitude.toString(),
-          longitude: coords.longitude.toString(),
-          speed: (coords.speed ?? 0).toString(),
-          time: currentTime.toLocaleTimeString(),
-        }),
-      });
+        { enableHighAccuracy: false, timeout: 5000 }
+      );
+    });
+  };
 
-      const data = await response.json();
-      console.log('Location sent:', data);
+  const sendLocationToAPI = async (lat, lon, speed) => {
+    const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const payload = {
+      school_id: 1,
+      bus_id: 1,
+      latitude: lat.toString(),
+      longitude: lon.toString(),
+      speed: `${speed.toFixed(2)} km/hour`,
+      time: currentTime,
+    };
+
+    try {
+      const response = await axios.post('https://api.stpl.cloud/track_location/live_track', payload);
+      console.log('API Response:', response.data);
     } catch (error) {
-      console.error('Failed to send location:', error);
+      console.error('API Error:', error.message);
     }
   };
 
-  const formatTime = (date) => date.toLocaleTimeString();
+  useEffect(() => {
+    let watchId;
 
-  const formatSpeed = (speed) => {
-    if (speed == null || speed < 0) return 'N/A';
-    return `${(speed * 3.6).toFixed(2)} km/h`;
-  };
+    const startLocationUpdates = async () => {
+      const hasPermission = await requestLocationPermission();
+      if (!hasPermission) {
+        setError('Location permission denied');
+        Alert.alert('Permission Denied', 'Please enable location permissions in settings.');
+        return;
+      }
+
+      const servicesEnabled = await checkLocationServices();
+      if (!servicesEnabled) {
+        setError('Location services are disabled');
+        return;
+      }
+
+      watchId = Geolocation.watchPosition(
+        (position) => {
+          const latitude = position.coords.latitude;
+          const longitude = position.coords.longitude;
+          const speed = position.coords.speed ? position.coords.speed * 3.6 : 0;
+
+          setLocation({ latitude, longitude, speed });
+          setError(null);
+
+          // Send data to API
+          sendLocationToAPI(latitude, longitude, speed);
+        },
+        (err) => {
+          console.log('Geolocation error:', err);
+          setError(err.message);
+          Alert.alert('Location Error', err.message);
+        },
+        {
+          enableHighAccuracy: false,
+          distanceFilter: 0,
+          interval: 2000,
+          fastestInterval: 2000,
+        }
+      );
+    };
+
+    startLocationUpdates();
+
+    const clockInterval = setInterval(() => {
+      setClock(new Date().toLocaleTimeString());
+    }, 1000);
+
+    return () => {
+      if (watchId) {
+        Geolocation.clearWatch(watchId);
+      }
+      clearInterval(clockInterval);
+    };
+  }, []);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Live Location</Text>
-      <Text style={styles.text}>Time: {formatTime(time)}</Text>
-      {loading ? (
-        <ActivityIndicator size="large" color="tomato" />
-      ) : location ? (
-        <>
-          <Text style={styles.text}>Latitude: {location.latitude}</Text>
-          <Text style={styles.text}>Longitude: {location.longitude}</Text>
-          <Text style={styles.text}>Speed: {formatSpeed(location.speed)}</Text>
-        </>
+      <Text style={styles.title}>Location Screen</Text>
+      <Text style={styles.clock}>Time: {clock}</Text>
+      {error ? (
+        <Text style={styles.error}>Error: {error}</Text>
       ) : (
-        <Text style={styles.text}>Waiting for location...</Text>
+        <>
+          <Text style={styles.text}>
+            Latitude: {location.latitude ? location.latitude.toFixed(6) : 'Waiting...'}
+          </Text>
+          <Text style={styles.text}>
+            Longitude: {location.longitude ? location.longitude.toFixed(6) : 'Waiting...'}
+          </Text>
+          <Text style={styles.text}>
+            Speed: {location.speed ? location.speed.toFixed(2) : 0} km/h
+          </Text>
+        </>
       )}
     </View>
   );
 };
-
-export default LocationScreen;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    padding: 20,
+    backgroundColor: '#f5f5f5',
   },
   title: {
     fontSize: 24,
-    marginBottom: 20,
     fontWeight: 'bold',
+    marginBottom: 20,
+  },
+  clock: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
   },
   text: {
     fontSize: 18,
-    marginVertical: 6,
+    marginVertical: 10,
+  },
+  error: {
+    fontSize: 18,
+    color: 'red',
+    marginVertical: 10,
   },
 });
+
+export default LocationScreen;

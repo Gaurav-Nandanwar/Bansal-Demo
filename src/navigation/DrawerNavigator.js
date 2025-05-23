@@ -19,7 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 
 import HomeTabs from '../navigation/HomeTabs';
-import FeesScreen from '../screens/FeesScreen';
+import VisitScreen from '../screens/VisitScreen';
 import TimetableScreen from '../screens/TimetableScreen';
 import CalendarScreen from '../screens/CalendarScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -74,12 +74,12 @@ const CustomDrawerContent = (props) => {
           onPress={() => props.navigation.navigate('Home')}
         />
         <DrawerItem
-          label="Fees"
+          label="Visitor"
           icon={({ color, size }) => (
-            <MaterialCommunityIcons name="cash-multiple" size={size} color={'white'} />
+            <MaterialCommunityIcons name="nature-people" size={size} color={'white'} />
           )}
           labelStyle={styles.drawerLabel}
-          onPress={() => props.navigation.navigate('Fees')}
+          onPress={() => props.navigation.navigate('Visitor')}
         />
         <DrawerItem
           label="Timetable"
@@ -129,7 +129,7 @@ const DrawerNavigator = () => {
       drawerContent={(props) => <CustomDrawerContent {...props} />}
     >
       <Drawer.Screen name="Home" component={HomeTabs} />
-      <Drawer.Screen name="Fees" component={FeesScreen} />
+      <Drawer.Screen name="Visitor" component={VisitScreen} />
       <Drawer.Screen name="Timetable" component={TimetableScreen} />
       <Drawer.Screen name="Calendar" component={CalendarScreen} />
       <Drawer.Screen name="Profile" component={ProfileScreen} />
