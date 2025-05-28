@@ -1,22 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ScrollView,
-  TouchableWithoutFeedback,
-  Keyboard,
-  Image,
-} from 'react-native';
+import {View,Text,TextInput,StyleSheet,TouchableOpacity,Modal,FlatList,KeyboardAvoidingView,Platform,Alert,ScrollView,TouchableWithoutFeedback,Keyboard,Image,} from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import ImageResizer from 'react-native-image-resizer';
 import Header from '../components/Header';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { LogBox } from 'react-native';
@@ -46,34 +32,43 @@ const VisitScreen = () => {
   const [otp, setOtp] = useState('');
   const [counter, setCounter] = useState(60);
   const [submittedData, setSubmittedData] = useState([]);
+  const [newVisit, setNewVisit] = useState(null); // Store the most recent submitted visit
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [timePickerVisible, setTimePickerVisible] = useState(false);
 
   // Fetch API data when component mounts
   const fetchVisitorData = async () => {
     try {
-      const response = await fetch('https://finewood-erp.in/finewoodProject/webApi/staff/showEmployeeVisitor/');
+      const response = await fetch('https://finewood-erp.in/finewoodProject/webApi/staff/showEmployeeVisitor/', {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
       const transformedData = data.map((item) => ({
-        name: item.name.clientName,
-        phone: item.name.clientMobile,
-        visitDate: item.name.visitDate,
-        visitTime: item.name.visitTime,
-        address: item.name.clientAddress,
-        email: item.name.clientEmail,
-        requirements: item.name.purpose,
-        remark: item.name.remark,
-        status: item.name.status,
-        attachments: item.images.map((img, index) => ({
-          uri: img,
-          type: 'image/jpeg',
-          name: `image_${index}.jpg`,
-        })),
-      }));
-      setSubmittedData(transformedData);
+          name: item.name.clientName,
+          phone: item.name.clientMobile,
+          visitDate: item.name.visitDate,
+          visitTime: item.name.visitTime,
+          address: item.name.clientAddress,
+          email: item.name.clientEmail,
+          requirements: item.name.purpose,
+          remark: item.name.remark,
+          status: item.name.status,
+          attachments: item.images.map((img, index) => ({
+            uri: img.image_url,
+            type: 'image/jpeg',
+            name: `image_${index}.jpg`,
+          })),
+        }));
+        setSubmittedData(transformedData);
+        setNewVisit(null); // Reset newVisit on fetch to avoid stale new visits
     } catch (error) {
-      console.error('Error fetching visitor data:', error);
-      Alert.alert('Error', 'Failed to fetch visitor data. Please try again later.');
+      console.error('Error fetching visitor data:', error.message);
+      Alert.alert('Error', 'Failed to fetch visitor data. Please check your network and try again.');
     }
   };
 
@@ -106,14 +101,92 @@ const VisitScreen = () => {
     setTimePickerVisible(false);
   };
 
+  const handleAttachmentPick = async () => {
+    try {
+      const response = await launchImageLibrary({ 
+        mediaType: 'photo', 
+        selectionLimit: 0,
+        quality: 1,
+        includeBase64: false
+      });
+
+      if (response.didCancel || response.errorCode) {
+        console.log('Image picker cancelled or error:', response.errorCode);
+        return;
+      }
+
+      const selectedAssets = response.assets || [];
+      const compressedAttachments = [];
+
+      for (const asset of selectedAssets) {
+        console.log('Processing image:', asset); // Debug log
+
+        // Validate image type and size
+        if (!['image/jpeg', 'image/png'].includes(asset.type)) {
+          Alert.alert('Invalid File', 'Only JPEG and PNG images are supported.');
+          continue;
+        }
+
+        if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
+          Alert.alert('File Too Large', 'Image size must be less than 5MB.');
+          continue;
+        }
+
+        try {
+          const compressedImage = await ImageResizer.createResizedImage(
+            asset.uri,
+            1024, // Max width
+            1024, // Max height
+            'JPEG',
+            80, // Quality (0-100)
+            0, // Rotation
+            undefined, // Output path
+            true // Keep metadata
+          );
+
+          console.log('Compressed image:', compressedImage); // Debug log
+
+          compressedAttachments.push({
+            uri: compressedImage.uri,
+            type: 'image/jpeg',
+            name: `image_${Date.now()}_${compressedAttachments.length}.jpg`
+          });
+        } catch (error) {
+          console.error('Image compression error:', error);
+          Alert.alert('Error', 'Failed to process image. Please try another image.');
+        }
+      }
+
+      console.log('Final compressed attachments:', compressedAttachments); // Debug log
+      setForm({ ...form, attachments: [...form.attachments, ...compressedAttachments] });
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Error', 'Failed to select images. Please try again.');
+    }
+  };
+
   const handleSendOtp = async () => {
-    if (!form.email) {
-      Alert.alert('Validation Error', 'Please enter an email address.');
+    // Validate required fields
+    const { name, phone, visitDate, visitTime, address, email, requirements } = form;
+    if (!name || !phone || !visitDate || !visitTime || !address || !email || !requirements) {
+      Alert.alert('Validation Error', 'All fields are required.');
+      return;
+    }
+
+    // Validate phone number
+    if (phone.length !== 10 || !/^[0-9]+$/.test(phone)) {
+      Alert.alert('Validation Error', 'Phone number must be 10 digits.');
+      return;
+    }
+
+    // Validate email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert('Validation Error', 'Please enter a valid email address.');
       return;
     }
 
     try {
-      // Submit the form data to create the visit and get visit_id
       const formData = new FormData();
       formData.append('clientName', form.name);
       formData.append('clientMobile', form.phone);
@@ -125,38 +198,51 @@ const VisitScreen = () => {
       formData.append('remark', form.remark);
       formData.append('staff', '13');
 
-      form.attachments.forEach((attachment, index) => {
-        formData.append('images', {
-          uri: attachment.uri,
-          type: attachment.type || 'image/jpeg',
-          name: attachment.name || `image_${index}.jpg`,
+      // Handle image uploads
+      if (form.attachments && form.attachments.length > 0) {
+        form.attachments.forEach((attachment, index) => {
+          formData.append('images', {
+            uri: Platform.OS === 'ios' ? attachment.uri.replace('file://', '') : attachment.uri,
+            type: 'image/jpeg',
+            name: `image_${index}.jpg`
+          });
         });
-      });
+      }
+
+      console.log('FormData being sent:', formData); // Debug log
 
       const createResponse = await fetch('https://finewood-erp.in/finewoodProject/webApi/staff/createEmployeeVisitor/', {
         method: 'POST',
         body: formData,
         headers: {
           'Content-Type': 'multipart/form-data',
+          'Accept': 'application/json',
         },
+        timeout: 30000,
       });
 
       if (!createResponse.ok) {
-        throw new Error('Failed to submit visit data');
+        const errorText = await createResponse.text();
+        console.error('API Error Response:', errorText); // Debug log
+        throw new Error(`HTTP error! status: ${createResponse.status}, message: ${errorText}`);
       }
 
       const createData = await createResponse.json();
-      const visitIdFromResponse = createData.visit_id || '10'; // Replace '10' with actual visit_id from response
+      console.log('API Success Response:', createData); // Debug log
+      const visitIdFromResponse = createData.visit_id;
+      if (!visitIdFromResponse) {
+        throw new Error('Visit ID not returned from API');
+      }
       setVisitId(visitIdFromResponse);
 
-      // Simulate sending OTP (replace with actual OTP API call if available)
+      // Open OTP modal
       setOtpModalVisible(true);
       setCounter(60);
       setOtp('');
       Alert.alert('OTP Sent', `OTP sent to ${form.email}`);
     } catch (error) {
-      console.error('Error sending OTP or submitting visit:', error);
-      Alert.alert('Error', 'Failed to send OTP or submit visit. Please try again later.');
+      console.error('Error sending OTP or submitting visit:', error.message);
+      Alert.alert('Error', `Failed to submit visit: ${error.message}. Please try again later.`);
     }
   };
 
@@ -167,7 +253,6 @@ const VisitScreen = () => {
     }
 
     try {
-      // Verify the OTP using the API
       const otpResponse = await fetch('https://finewood-erp.in/finewoodProject/webApi/staff/verifyVisitorOTP/', {
         method: 'POST',
         headers: {
@@ -177,15 +262,37 @@ const VisitScreen = () => {
           visit_id: visitId,
           otp: otp,
         }),
+        timeout: 15000, // 15-second timeout
       });
 
-      const otpData = await otpResponse.json();
+      if (!otpResponse.ok) {
+        const errorText = await otpResponse.text();
+        throw new Error(`HTTP error! status: ${otpResponse.status}, message: ${errorText}`);
+      }
 
-      if (!otpResponse.ok || !otpData.success) {
+      const otpData = await otpResponse.json();
+      if (!otpData.success) {
         throw new Error(otpData.message || 'Failed to verify OTP');
       }
 
-      // Refresh the visitor list
+      // Create new visit object from form
+      const visit = {
+        name: form.name,
+        phone: form.phone,
+        visitDate: form.visitDate,
+        visitTime: form.visitTime,
+        address: form.address,
+        email: form.email,
+        requirements: form.requirements,
+        remark: form.remark,
+        status: otpData.status || 'Pending', // Use status from API if available
+        attachments: form.attachments,
+      };
+
+      // Set the new visit to display above History
+      setNewVisit(visit);
+
+      // Refresh submittedData to include the new visit from the server
       await fetchVisitorData();
 
       // Reset form and close modals
@@ -205,28 +312,15 @@ const VisitScreen = () => {
       setVisitId(null);
       Alert.alert('Success', otpData.message || 'Visit submitted and OTP verified successfully');
     } catch (error) {
-      console.error('Error verifying OTP:', error);
+      console.error('Error verifying OTP:', error.message);
       Alert.alert('Error', error.message || 'Failed to verify OTP. Please try again later.');
     }
   };
 
-  const openDetails = (item, index) => {
+  const openDetails = (item, index, isNewVisit = false) => {
     setSelectedVisit(item);
-    setSelectedVisitIndex(index);
+    setSelectedVisitIndex(isNewVisit ? -1 : index); // Use -1 for newVisit to distinguish it
     setDetailModalVisible(true);
-  };
-
-  const handleAttachmentPick = () => {
-    launchImageLibrary({ mediaType: 'mixed', selectionLimit: 0 }, (response) => {
-      if (response.didCancel || response.errorCode) return;
-      const selectedAssets = response.assets || [];
-      const newAttachments = selectedAssets.map((asset) => ({
-        uri: asset.uri,
-        type: asset.type,
-        name: asset.fileName || `attachment_${Date.now()}`,
-      }));
-      setForm({ ...form, attachments: [...form.attachments, ...newAttachments] });
-    });
   };
 
   const handleDeleteAttachment = (index) => {
@@ -257,17 +351,22 @@ const VisitScreen = () => {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            const updatedSubmittedData = [...submittedData];
-            const updatedAttachments = selectedVisit.attachments.filter((_, i) => i !== index);
-            updatedSubmittedData[selectedVisitIndex] = {
-              ...selectedVisit,
-              attachments: updatedAttachments,
-            };
-            setSubmittedData(updatedSubmittedData);
-            setSelectedVisit({
-              ...selectedVisit,
-              attachments: updatedAttachments,
-            });
+            if (selectedVisitIndex === -1) {
+              // Update newVisit if the selected visit is the new one
+              const updatedAttachments = newVisit.attachments.filter((_, i) => i !== index);
+              setNewVisit({ ...newVisit, attachments: updatedAttachments });
+              setSelectedVisit({ ...newVisit, attachments: updatedAttachments });
+            } else {
+              // Update submittedData for historical visits
+              const updatedSubmittedData = [...submittedData];
+              const updatedAttachments = selectedVisit.attachments.filter((_, i) => i !== index);
+              updatedSubmittedData[selectedVisitIndex] = {
+                ...selectedVisit,
+                attachments: updatedAttachments,
+              };
+              setSubmittedData(updatedSubmittedData);
+              setSelectedVisit({ ...selectedVisit, attachments: updatedAttachments });
+            }
           },
         },
       ]
@@ -301,11 +400,49 @@ const VisitScreen = () => {
     </View>
   );
 
-  const renderRequirement = ({ item }) => (
-    <View style={styles.requirementItem}>
-      <Text style={styles.requirementText}>• {item}</Text>
-    </View>
+  const renderItem = ({ item, index }) => (
+    <TouchableOpacity onPress={() => openDetails(item, index)} style={styles.dataBox}>
+      <Text style={styles.dataText}>
+        <Text style={styles.bold}>Name:</Text> {item.name}
+      </Text>
+      <Text style={styles.dataText}>
+        <Text style={styles.bold}>Phone:</Text> {item.phone}
+      </Text>
+      <Text style={styles.dataText}>
+        <Text style={styles.bold}>Status:</Text> {item.status}
+      </Text>
+    </TouchableOpacity>
   );
+
+  // Render the new visit if it exists
+  const renderNewVisit = () => {
+    if (!newVisit) return null;
+    return (
+      <TouchableOpacity onPress={() => openDetails(newVisit, 0, true)} style={styles.dataBox}>
+        <Text style={styles.dataText}>
+          <Text style={styles.bold}>Name:</Text> {newVisit.name}
+        </Text>
+        <Text style={styles.dataText}>
+          <Text style={styles.bold}>Phone:</Text> {newVisit.phone}
+        </Text>
+        <Text style={styles.dataText}>
+          <Text style={styles.bold}>Status:</Text> {newVisit.status}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  // Render the History header if there are historical visits
+  const renderHistoryHeader = () => {
+    if (submittedData.length > 0) {
+      return (
+        <View style={styles.historyHeader}>
+          <Text style={styles.historyTitle}>History</Text>
+        </View>
+      );
+    }
+    return null;
+  };
 
   return (
     <View style={styles.container}>
@@ -321,18 +458,12 @@ const VisitScreen = () => {
         data={submittedData}
         keyExtractor={(item, index) => index.toString()}
         contentContainerStyle={{ padding: 10 }}
-        renderItem={({ item, index }) => (
-          <TouchableOpacity onPress={() => openDetails(item, index)} style={styles.dataBox}>
-            <Text style={styles.dataText}>
-              <Text style={styles.bold}>Name:</Text> {item.name}
-            </Text>
-            <Text style={styles.dataText}>
-              <Text style={styles.bold}>Phone:</Text> {item.phone}
-            </Text>
-            <Text style={styles.dataText}>
-              <Text style={styles.bold}>Status:</Text> {item.status}
-            </Text>
-          </TouchableOpacity>
+        renderItem={renderItem}
+        ListHeaderComponent={() => (
+          <>
+            {renderNewVisit()}
+            {renderHistoryHeader()}
+          </>
         )}
       />
 
@@ -455,7 +586,7 @@ const VisitScreen = () => {
       {/* Detail View Modal */}
       <Modal visible={detailModalVisible} transparent animationType="fade">
         <View style={styles.detailModalContainer}>
-          <ScrollView contentContainerStyle={styles.detailBox}>
+          <View style={styles.detailBox}>
             <Text style={styles.detailTitle}>Visit Details</Text>
             {selectedVisit && (
               <View style={styles.detailContent}>
@@ -465,12 +596,13 @@ const VisitScreen = () => {
                     return (
                       <View key={key} style={styles.detailRow}>
                         <Text style={styles.detailLabel}>{key.charAt(0).toUpperCase() + key.slice(1)}:</Text>
-                        <FlatList
-                          data={requirementsList}
-                          renderItem={renderRequirement}
-                          keyExtractor={(item, index) => index.toString()}
-                          style={styles.requirementsList}
-                        />
+                        <View style={styles.requirementsList}>
+                          {requirementsList.map((item, index) => (
+                            <View key={index} style={styles.requirementItem}>
+                              <Text style={styles.requirementText}>• {item}</Text>
+                            </View>
+                          ))}
+                        </View>
                       </View>
                     );
                   } else if (key === 'attachments') {
@@ -478,13 +610,18 @@ const VisitScreen = () => {
                       value.length > 0 && (
                         <View key={key} style={styles.detailRow}>
                           <Text style={styles.detailLabel}>{key.charAt(0).toUpperCase() + key.slice(1)}:</Text>
-                          <FlatList
-                            data={value}
-                            renderItem={renderDetailAttachment}
-                            keyExtractor={(item, index) => index.toString()}
-                            horizontal
-                            style={styles.attachmentsList}
-                          />
+                          <View style={styles.attachmentsList}>
+                            {value.map((item, index) => (
+                              <View key={index} style={styles.attachmentContainer}>
+                                <TouchableOpacity onPress={() => handleImageZoom(item.uri)}>
+                                  <Image source={{ uri: item.uri }} style={styles.previewImage} />
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.deleteButton} onPress={() => handleDeleteDetailAttachment(index)}>
+                                  <Icon name="delete" size={20} color="#fff" />
+                                </TouchableOpacity>
+                              </View>
+                            ))}
+                          </View>
                         </View>
                       )
                     );
@@ -503,7 +640,7 @@ const VisitScreen = () => {
             <TouchableOpacity onPress={() => setDetailModalVisible(false)} style={styles.closeDetailBtn}>
               <Text style={{ color: '#fff' }}>Close</Text>
             </TouchableOpacity>
-          </ScrollView>
+          </View>
         </View>
       </Modal>
 
@@ -538,7 +675,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 10, // Reduced vertical padding
-  paddingHorizontal: 16,
+    paddingHorizontal: 16,
     backgroundColor: '#fff',
     elevation: 3,
   },
@@ -747,5 +884,14 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  historyHeader: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+  },
+  historyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
   },
 });

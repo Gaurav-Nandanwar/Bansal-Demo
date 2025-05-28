@@ -14,6 +14,7 @@ const InquiryScreen = () => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedInquiry, setSelectedInquiry] = useState(null);
   const [inquiries, setInquiries] = useState([]);
+  const [recentInquiries, setRecentInquiries] = useState([]);
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
   const [form, setForm] = useState({
     clientName: '',
@@ -82,6 +83,7 @@ const InquiryScreen = () => {
   };
 
   useEffect(() => {
+    setRecentInquiries([]); // Clear recent inquiries on mount (new session)
     fetchInquiries();
   }, []);
 
@@ -107,7 +109,7 @@ const InquiryScreen = () => {
       return;
     }
 
-    // Budget validation (ensure it's a positive number)
+    // Budget validation
     if (isNaN(budget) || Number(budget) <= 0) {
       Alert.alert('Validation Error', 'Budget must be a valid positive number.');
       return;
@@ -117,6 +119,7 @@ const InquiryScreen = () => {
       const response = await axios.post(
         'https://finewood-erp.in/finewoodProject/webApi/staff/createEmployeeInquiry/',
         {
+          staff: 13,
           clientName,
           email,
           mobileNo,
@@ -135,7 +138,24 @@ const InquiryScreen = () => {
 
       if (response.status === 200) {
         Alert.alert('Success', 'Inquiry submitted successfully.');
-        await fetchInquiries(); // Refresh inquiries from server
+        // Create new inquiry object
+        const newInquiry = {
+          id: response.data.id || Date.now().toString(),
+          clientName,
+          email,
+          mobileNo,
+          whatappNo,
+          address,
+          productDetails,
+          budget,
+          followup1,
+          status: 'Pending',
+          remark: '',
+        };
+        // Add to recent inquiries
+        setRecentInquiries([newInquiry, ...recentInquiries]);
+        // Refresh inquiries from server
+        await fetchInquiries();
         setModalVisible(false);
         setForm(initialFormState); // Reset form
       } else {
@@ -249,7 +269,8 @@ const InquiryScreen = () => {
       </View>
 
       <ScrollView contentContainerStyle={styles.inquiryList}>
-        {inquiries.map((item) => (
+        {/* Recent Inquiries */}
+        {recentInquiries.length > 0 && recentInquiries.map((item) => (
           <TouchableOpacity
             key={item.id}
             style={styles.inquiryBox}
@@ -260,6 +281,23 @@ const InquiryScreen = () => {
             <Text style={styles.inquiryStatus}>Status: {item.status}</Text>
           </TouchableOpacity>
         ))}
+        {/* History Section */}
+        {inquiries.length > 0 && (
+          <>
+            <Text style={styles.historyTitle}>History</Text>
+            {inquiries.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.inquiryBox}
+                onPress={() => openDetailModal(item)}
+              >
+                <Text style={styles.inquiryText}><Text style={styles.label}>Name:</Text> {item.clientName}</Text>
+                <Text style={styles.inquiryText}><Text style={styles.label}>Contact:</Text> {item.mobileNo}</Text>
+                <Text style={styles.inquiryStatus}>Status: {item.status}</Text>
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
       </ScrollView>
 
       {/* Inquiry Form Modal */}
@@ -276,7 +314,12 @@ const InquiryScreen = () => {
                   key={idx}
                   style={styles.input}
                   placeholder={field.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                  keyboardType={(field === 'email') ? 'email-address' : (['mobileNo', 'whatappNo', 'budget'].includes(field) ? 'phone-pad' : 'default')}
+                  keyboardType={
+                    field === 'email' ? 'email-address' :
+                    field === 'mobileNo' || field === 'whatappNo' ? 'numeric' :
+                    field === 'budget' ? 'numeric' : 'default'
+                  }
+                  maxLength={field === 'mobileNo' || field === 'whatappNo' ? 10 : undefined}
                   value={form[field]}
                   onChangeText={(text) => handleInputChange(field, text)}
                 />
@@ -326,7 +369,12 @@ const InquiryScreen = () => {
                   key={idx}
                   style={styles.input}
                   placeholder={field.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                  keyboardType={(field === 'email') ? 'email-address' : (['mobileNo', 'whatappNo', 'budget'].includes(field) ? 'phone-pad' : 'default')}
+                  keyboardType={
+                    field === 'email' ? 'email-address' :
+                    field === 'mobileNo' || field === 'whatappNo' ? 'numeric' :
+                    field === 'budget' ? 'numeric' : 'default'
+                  }
+                  maxLength={field === 'mobileNo' || field === 'whatappNo' ? 10 : undefined}
                   value={form[field]}
                   onChangeText={(text) => handleInputChange(field, text)}
                 />
@@ -489,5 +537,15 @@ const styles = StyleSheet.create({
   },
   detailValue: {
     flex: 1, flexWrap: 'wrap',
+  },
+  historyHeader: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+  },
+  historyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom:5,
   },
 });

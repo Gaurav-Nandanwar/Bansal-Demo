@@ -117,7 +117,7 @@ const LocationScreen = () => {
         {
           enableHighAccuracy: true,
           distanceFilter: 0,
-          interval: 2000,
+          interval: 1000,
           fastestInterval: 1000,
           timeout: 10000,
           maximumAge: 1000,
