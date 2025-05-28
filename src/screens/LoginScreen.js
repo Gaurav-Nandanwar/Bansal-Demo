@@ -1,17 +1,9 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-  Alert,
-  Modal,
-  Platform,
-} from 'react-native';
+import {View, Text, TextInput, TouchableOpacity, StyleSheet, Image,Alert, Modal, Platform, ActivityIndicator} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Picker } from '@react-native-picker/picker';
+import axios from 'axios';
+import { useAuth } from '../context/AuthContext'; // 👈 import useAuth
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -19,18 +11,38 @@ const LoginScreen = () => {
   const [forgotVisible, setForgotVisible] = useState(false);
   const [selectedOption, setSelectedOption] = useState('email');
   const [inputValue, setInputValue] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const navigation = useNavigation();
+  const { setUserData } = useAuth(); // 👈 use context
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Please enter both email and password');
+      Alert.alert('Validation Error', 'Please enter both email and password');
       return;
     }
 
-    // Dummy login logic - you can log in with any credentials
-    Alert.alert('Login Success', `Welcome, ${email}`);
-    navigation.replace('Dashboard'); // Navigate to the Dashboard screen
+    try {
+      setLoading(true);
+      const response = await axios.post(
+        'https://finewood-erp.in/finewoodProject/webApi/user/login/',
+        { username: email, password }
+      );
+      setLoading(false);
+
+      if (response.data.statusCode === '01') {
+        const userDetails = response.data.userProfile.userDetails;
+        setUserData(userDetails); // 👈 store in context
+        Alert.alert('Login Successful', `Welcome, ${userDetails.employeename}`);
+        navigation.replace('Dashboard');
+      } else {
+        Alert.alert('Login Failed', response.data.msg || 'Invalid credentials');
+      }
+    } catch (error) {
+      setLoading(false);
+      console.error('Login Error:', error);
+      Alert.alert('Error', 'Something went wrong. Please try again later.');
+    }
   };
 
   const handleForgotSubmit = () => {
@@ -45,8 +57,8 @@ const LoginScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Image source={require('../../assets/school.png')} style={styles.logo} />
-      <Text style={styles.title}>Parent Login</Text>
+      <Image source={require('../../assets/finewood.png')} style={styles.logo} />
+      <Text style={styles.title}>User Login</Text>
 
       <TextInput
         style={styles.input}
@@ -54,6 +66,7 @@ const LoginScreen = () => {
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
+        autoCapitalize="none"
       />
 
       <TextInput
@@ -64,8 +77,8 @@ const LoginScreen = () => {
         secureTextEntry
       />
 
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Log In</Text>
+      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Log In</Text>}
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => setForgotVisible(true)}>
@@ -76,7 +89,6 @@ const LoginScreen = () => {
       <Modal visible={forgotVisible} animationType="slide" transparent={false}>
         <View style={styles.modalContainer}>
           <Text style={styles.modalTitle}>Forgot Password</Text>
-
           <View style={styles.pickerWrapper}>
             <Picker
               selectedValue={selectedOption}
@@ -92,11 +104,7 @@ const LoginScreen = () => {
 
           <TextInput
             style={styles.modalInput}
-            placeholder={
-              selectedOption === 'email'
-                ? 'Enter your email'
-                : 'Enter your phone number'
-            }
+            placeholder={selectedOption === 'email' ? 'Enter your email' : 'Enter your phone number'}
             keyboardType={selectedOption === 'email' ? 'email-address' : 'numeric'}
             value={inputValue}
             onChangeText={setInputValue}

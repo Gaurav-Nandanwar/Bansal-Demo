@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import HomeContent from './HomeContent';
 
 const HomeScreen = ({ navigation }) => {
   return (
@@ -16,7 +17,7 @@ const HomeScreen = ({ navigation }) => {
       </View>
 
       <View style={styles.content}>
-        <Text>Welcome to the Home Dashboard</Text>
+        <HomeContent/>
       </View>
     </View>
   );

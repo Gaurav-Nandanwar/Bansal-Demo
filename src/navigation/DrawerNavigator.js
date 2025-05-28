@@ -20,9 +20,9 @@ import { useAuth } from '../context/AuthContext';
 
 import HomeTabs from '../navigation/HomeTabs';
 import VisitScreen from '../screens/VisitScreen';
-import TimetableScreen from '../screens/TimetableScreen';
-import CalendarScreen from '../screens/CalendarScreen';
-import ProfileScreen from '../screens/ProfileScreen';
+// import TimetableScreen from '../screens/TimetableScreen';
+import InquiryScreen from '../screens/InquiryScreen';
+// import ProfileScreen from '../screens/ProfileScreen';
 
 const Drawer = createDrawerNavigator();
 
@@ -57,11 +57,12 @@ const CustomDrawerContent = (props) => {
           source={
             userData?.studentimage?.image_url
               ? { uri: userData.studentimage.image_url }
-              : require('../../assets/school.png') // fallback avatar
+              : require('../../assets/finewood.png') // fallback avatar
           }
           style={styles.profileImage}
+              resizeMode="contain"
+
         />
-        <Text style={styles.profileName}>{userData?.studentname}</Text>
       </View>
 
       <View style={styles.menuContainer}>
@@ -81,30 +82,30 @@ const CustomDrawerContent = (props) => {
           labelStyle={styles.drawerLabel}
           onPress={() => props.navigation.navigate('Visitor')}
         />
-        <DrawerItem
+        {/* <DrawerItem
           label="Timetable"
           icon={({ color, size }) => (
             <MaterialCommunityIcons name="calendar-clock" size={size} color={'white'} />
           )}
           labelStyle={styles.drawerLabel}
           onPress={() => props.navigation.navigate('Timetable')}
-        />
+        /> */}
         <DrawerItem
-          label="Calendar"
+          label="Inquiry"
           icon={({ color, size }) => (
-            <MaterialCommunityIcons name="clipboard-check-outline" size={size} color={'white'} />
+            <MaterialCommunityIcons name="application" size={size} color={'white'} />
           )}
           labelStyle={styles.drawerLabel}
-          onPress={() => props.navigation.navigate('Calendar')}
+          onPress={() => props.navigation.navigate('Inquiry')}
         />
-        <DrawerItem
+        {/* <DrawerItem
           label="Profile"
           icon={({ color, size }) => (
             <MaterialCommunityIcons name="account-circle-outline" size={size} color={'white'} />
           )}
           labelStyle={styles.drawerLabel}
           onPress={() => props.navigation.navigate('Profile')}
-        />
+        /> */}
       </View>
 
       <View style={styles.logoutContainer}>
@@ -130,9 +131,9 @@ const DrawerNavigator = () => {
     >
       <Drawer.Screen name="Home" component={HomeTabs} />
       <Drawer.Screen name="Visitor" component={VisitScreen} />
-      <Drawer.Screen name="Timetable" component={TimetableScreen} />
-      <Drawer.Screen name="Calendar" component={CalendarScreen} />
-      <Drawer.Screen name="Profile" component={ProfileScreen} />
+      {/* <Drawer.Screen name="Timetable" component={TimetableScreen} /> */}
+      <Drawer.Screen name="Inquiry" component={InquiryScreen} />
+      {/* <Drawer.Screen name="Profile" component={ProfileScreen} /> */}
 
     </Drawer.Navigator>
   );

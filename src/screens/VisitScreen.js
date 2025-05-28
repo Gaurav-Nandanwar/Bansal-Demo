@@ -1,13 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, TouchableOpacity,
-  Modal, FlatList, KeyboardAvoidingView, Platform,
-  Alert, ScrollView, TouchableWithoutFeedback, Keyboard, Image
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+  ScrollView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Image,
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Header from '../components/Header';
 import { launchImageLibrary } from 'react-native-image-picker';
+import { LogBox } from 'react-native';
+
+LogBox.ignoreLogs(['VirtualizedLists should never be nested']); // Ignore warning about nested FlatLists
 
 const VisitScreen = () => {
   const [modalVisible, setModalVisible] = useState(false);
@@ -15,8 +29,9 @@ const VisitScreen = () => {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [imageZoomModalVisible, setImageZoomModalVisible] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState(null);
+  const [selectedVisitIndex, setSelectedVisitIndex] = useState(null);
   const [zoomedImage, setZoomedImage] = useState(null);
-
+  const [visitId, setVisitId] = useState(null); // Store visit_id for OTP verification
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -28,13 +43,43 @@ const VisitScreen = () => {
     remark: '',
     attachments: [],
   });
-
   const [otp, setOtp] = useState('');
   const [counter, setCounter] = useState(60);
   const [submittedData, setSubmittedData] = useState([]);
-
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [timePickerVisible, setTimePickerVisible] = useState(false);
+
+  // Fetch API data when component mounts
+  const fetchVisitorData = async () => {
+    try {
+      const response = await fetch('https://finewood-erp.in/finewoodProject/webApi/staff/showEmployeeVisitor/');
+      const data = await response.json();
+      const transformedData = data.map((item) => ({
+        name: item.name.clientName,
+        phone: item.name.clientMobile,
+        visitDate: item.name.visitDate,
+        visitTime: item.name.visitTime,
+        address: item.name.clientAddress,
+        email: item.name.clientEmail,
+        requirements: item.name.purpose,
+        remark: item.name.remark,
+        status: item.name.status,
+        attachments: item.images.map((img, index) => ({
+          uri: img,
+          type: 'image/jpeg',
+          name: `image_${index}.jpg`,
+        })),
+      }));
+      setSubmittedData(transformedData);
+    } catch (error) {
+      console.error('Error fetching visitor data:', error);
+      Alert.alert('Error', 'Failed to fetch visitor data. Please try again later.');
+    }
+  };
+
+  useEffect(() => {
+    fetchVisitorData();
+  }, []);
 
   useEffect(() => {
     let timer;
@@ -45,7 +90,7 @@ const VisitScreen = () => {
   }, [counter, otpModalVisible]);
 
   const handleDateConfirm = (date) => {
-    setForm({ ...form, visitDate: date.toDateString() });
+    setForm({ ...form, visitDate: date.toISOString().split('T')[0] });
     setDatePickerVisible(false);
   };
 
@@ -55,46 +100,119 @@ const VisitScreen = () => {
       visitTime: time.toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',
+        hour12: false,
       }),
     });
     setTimePickerVisible(false);
   };
 
-  const handleSendOtp = () => {
+  const handleSendOtp = async () => {
     if (!form.email) {
       Alert.alert('Validation Error', 'Please enter an email address.');
       return;
     }
-    setOtpModalVisible(true);
-    setCounter(60);
-    setOtp('');
-    Alert.alert('OTP Sent', `OTP sent to ${form.email}`);
+
+    try {
+      // Submit the form data to create the visit and get visit_id
+      const formData = new FormData();
+      formData.append('clientName', form.name);
+      formData.append('clientMobile', form.phone);
+      formData.append('clientEmail', form.email);
+      formData.append('clientAddress', form.address);
+      formData.append('visitDate', form.visitDate);
+      formData.append('visitTime', form.visitTime);
+      formData.append('purpose', form.requirements);
+      formData.append('remark', form.remark);
+      formData.append('staff', '13');
+
+      form.attachments.forEach((attachment, index) => {
+        formData.append('images', {
+          uri: attachment.uri,
+          type: attachment.type || 'image/jpeg',
+          name: attachment.name || `image_${index}.jpg`,
+        });
+      });
+
+      const createResponse = await fetch('https://finewood-erp.in/finewoodProject/webApi/staff/createEmployeeVisitor/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (!createResponse.ok) {
+        throw new Error('Failed to submit visit data');
+      }
+
+      const createData = await createResponse.json();
+      const visitIdFromResponse = createData.visit_id || '10'; // Replace '10' with actual visit_id from response
+      setVisitId(visitIdFromResponse);
+
+      // Simulate sending OTP (replace with actual OTP API call if available)
+      setOtpModalVisible(true);
+      setCounter(60);
+      setOtp('');
+      Alert.alert('OTP Sent', `OTP sent to ${form.email}`);
+    } catch (error) {
+      console.error('Error sending OTP or submitting visit:', error);
+      Alert.alert('Error', 'Failed to send OTP or submit visit. Please try again later.');
+    }
   };
 
-  const handleSubmit = () => {
-    if (otp !== '1234') {
-      Alert.alert('Incorrect OTP', 'Please enter the correct OTP (try 1234 for demo).');
+  const handleSubmit = async () => {
+    if (!otp) {
+      Alert.alert('Validation Error', 'Please enter the OTP.');
       return;
     }
-    const newData = { ...form, status: 'Verified' };
-    setSubmittedData([...submittedData, newData]);
-    setModalVisible(false);
-    setOtpModalVisible(false);
-    setForm({
-      name: '',
-      phone: '',
-      visitDate: '',
-      visitTime: '',
-      address: '',
-      email: '',
-      requirements: '',
-      remark: '',
-      attachments: [],
-    });
+
+    try {
+      // Verify the OTP using the API
+      const otpResponse = await fetch('https://finewood-erp.in/finewoodProject/webApi/staff/verifyVisitorOTP/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          visit_id: visitId,
+          otp: otp,
+        }),
+      });
+
+      const otpData = await otpResponse.json();
+
+      if (!otpResponse.ok || !otpData.success) {
+        throw new Error(otpData.message || 'Failed to verify OTP');
+      }
+
+      // Refresh the visitor list
+      await fetchVisitorData();
+
+      // Reset form and close modals
+      setForm({
+        name: '',
+        phone: '',
+        visitDate: '',
+        visitTime: '',
+        address: '',
+        email: '',
+        requirements: '',
+        remark: '',
+        attachments: [],
+      });
+      setModalVisible(false);
+      setOtpModalVisible(false);
+      setVisitId(null);
+      Alert.alert('Success', otpData.message || 'Visit submitted and OTP verified successfully');
+    } catch (error) {
+      console.error('Error verifying OTP:', error);
+      Alert.alert('Error', error.message || 'Failed to verify OTP. Please try again later.');
+    }
   };
 
-  const openDetails = (item) => {
+  const openDetails = (item, index) => {
     setSelectedVisit(item);
+    setSelectedVisitIndex(index);
     setDetailModalVisible(true);
   };
 
@@ -102,7 +220,7 @@ const VisitScreen = () => {
     launchImageLibrary({ mediaType: 'mixed', selectionLimit: 0 }, (response) => {
       if (response.didCancel || response.errorCode) return;
       const selectedAssets = response.assets || [];
-      const newAttachments = selectedAssets.map(asset => ({
+      const newAttachments = selectedAssets.map((asset) => ({
         uri: asset.uri,
         type: asset.type,
         name: asset.fileName || `attachment_${Date.now()}`,
@@ -129,6 +247,33 @@ const VisitScreen = () => {
     );
   };
 
+  const handleDeleteDetailAttachment = (index) => {
+    Alert.alert(
+      'Delete Attachment',
+      'Are you sure you want to delete this attachment?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            const updatedSubmittedData = [...submittedData];
+            const updatedAttachments = selectedVisit.attachments.filter((_, i) => i !== index);
+            updatedSubmittedData[selectedVisitIndex] = {
+              ...selectedVisit,
+              attachments: updatedAttachments,
+            };
+            setSubmittedData(updatedSubmittedData);
+            setSelectedVisit({
+              ...selectedVisit,
+              attachments: updatedAttachments,
+            });
+          },
+        },
+      ]
+    );
+  };
+
   const handleImageZoom = (uri) => {
     setZoomedImage(uri);
     setImageZoomModalVisible(true);
@@ -139,10 +284,18 @@ const VisitScreen = () => {
       <TouchableOpacity onPress={() => handleImageZoom(item.uri)}>
         <Image source={{ uri: item.uri }} style={styles.previewImage} />
       </TouchableOpacity>
-      <TouchableOpacity 
-        style={styles.deleteButton} 
-        onPress={() => handleDeleteAttachment(index)}
-      >
+      <TouchableOpacity style={styles.deleteButton} onPress={() => handleDeleteAttachment(index)}>
+        <Icon name="delete" size={20} color="#fff" />
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderDetailAttachment = ({ item, index }) => (
+    <View style={styles.attachmentContainer}>
+      <TouchableOpacity onPress={() => handleImageZoom(item.uri)}>
+        <Image source={{ uri: item.uri }} style={styles.previewImage} />
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.deleteButton} onPress={() => handleDeleteDetailAttachment(index)}>
         <Icon name="delete" size={20} color="#fff" />
       </TouchableOpacity>
     </View>
@@ -168,11 +321,17 @@ const VisitScreen = () => {
         data={submittedData}
         keyExtractor={(item, index) => index.toString()}
         contentContainerStyle={{ padding: 10 }}
-        renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => openDetails(item)} style={styles.dataBox}>
-            <Text style={styles.dataText}><Text style={styles.bold}>Name:</Text> {item.name}</Text>
-            <Text style={styles.dataText}><Text style={styles.bold}>Phone:</Text> {item.phone}</Text>
-            <Text style={styles.dataText}><Text style={styles.bold}>Status:</Text> {item.status}</Text>
+        renderItem={({ item, index }) => (
+          <TouchableOpacity onPress={() => openDetails(item, index)} style={styles.dataBox}>
+            <Text style={styles.dataText}>
+              <Text style={styles.bold}>Name:</Text> {item.name}
+            </Text>
+            <Text style={styles.dataText}>
+              <Text style={styles.bold}>Phone:</Text> {item.phone}
+            </Text>
+            <Text style={styles.dataText}>
+              <Text style={styles.bold}>Status:</Text> {item.status}
+            </Text>
           </TouchableOpacity>
         )}
       />
@@ -184,19 +343,19 @@ const VisitScreen = () => {
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
               <ScrollView contentContainerStyle={styles.modalContent}>
                 <Text style={styles.modalTitle}>Add New Visit</Text>
-                <TextInput 
-                  placeholder="Full Name" 
-                  style={styles.input} 
-                  value={form.name} 
-                  onChangeText={(val) => setForm({ ...form, name: val })} 
+                <TextInput
+                  placeholder="Full Name"
+                  style={styles.input}
+                  value={form.name}
+                  onChangeText={(val) => setForm({ ...form, name: val })}
                 />
-                <TextInput 
-                  placeholder="Phone Number" 
-                  style={styles.input} 
-                  keyboardType="phone-pad" 
+                <TextInput
+                  placeholder="Phone Number"
+                  style={styles.input}
+                  keyboardType="phone-pad"
                   maxLength={10}
-                  value={form.phone} 
-                  onChangeText={(val) => setForm({ ...form, phone: val.replace(/[^0-9]/g, '') })} 
+                  value={form.phone}
+                  onChangeText={(val) => setForm({ ...form, phone: val.replace(/[^0-9]/g, '') })}
                 />
                 <TouchableOpacity style={styles.inputRow} onPress={() => setDatePickerVisible(true)}>
                   <Text style={styles.inputText}>{form.visitDate || 'Select Visit Date'}</Text>
@@ -206,34 +365,33 @@ const VisitScreen = () => {
                   <Text style={styles.inputText}>{form.visitTime || 'Select Visit Time'}</Text>
                   <Icon name="clock-outline" size={22} color="#555" />
                 </TouchableOpacity>
-                <TextInput 
-                  placeholder="Address" 
-                  style={styles.input} 
-                  value={form.address} 
-                  onChangeText={(val) => setForm({ ...form, address: val })} 
+                <TextInput
+                  placeholder="Address"
+                  style={styles.input}
+                  value={form.address}
+                  onChangeText={(val) => setForm({ ...form, address: val })}
                 />
-                <TextInput 
-                  placeholder="Email" 
-                  style={styles.input} 
-                  keyboardType="email-address" 
-                  value={form.email} 
-                  onChangeText={(val) => setForm({ ...form, email: val })} 
+                <TextInput
+                  placeholder="Email"
+                  style={styles.input}
+                  keyboardType="email-address"
+                  value={form.email}
+                  onChangeText={(val) => setForm({ ...form, email: val })}
                 />
-                <TextInput 
-                  placeholder="Requirements" 
-                  style={[styles.input, { minHeight: 100 }]} 
-                  multiline 
-                  value={form.requirements} 
-                  onChangeText={(val) => setForm({ ...form, requirements: val })} 
+                <TextInput
+                  placeholder="Requirements"
+                  style={[styles.input, { minHeight: 100 }]}
+                  multiline
+                  value={form.requirements}
+                  onChangeText={(val) => setForm({ ...form, requirements: val })}
                 />
-                <TextInput 
-                  placeholder="Remark" 
-                  style={[styles.input, { minHeight: 50 }]} 
-                  multiline 
-                  value={form.remark} 
-                  onChangeText={(val) => setForm({ ...form, remark: val })} 
+                <TextInput
+                  placeholder="Remark"
+                  style={[styles.input, { minHeight: 50 }]}
+                  multiline
+                  value={form.remark}
+                  onChangeText={(val) => setForm({ ...form, remark: val })}
                 />
-                
                 <TouchableOpacity style={styles.photoButton} onPress={handleAttachmentPick}>
                   <Text style={styles.sendOtpText}>Add Attachments</Text>
                 </TouchableOpacity>
@@ -244,7 +402,6 @@ const VisitScreen = () => {
                   horizontal
                   style={styles.attachmentsList}
                 />
-                
                 <TouchableOpacity style={styles.sendOtpButton} onPress={handleSendOtp}>
                   <Text style={styles.sendOtpText}>Send OTP</Text>
                 </TouchableOpacity>
@@ -256,17 +413,17 @@ const VisitScreen = () => {
           </KeyboardAvoidingView>
         </View>
 
-        <DateTimePickerModal 
-          isVisible={datePickerVisible} 
-          mode="date" 
-          onConfirm={handleDateConfirm} 
-          onCancel={() => setDatePickerVisible(false)} 
+        <DateTimePickerModal
+          isVisible={datePickerVisible}
+          mode="date"
+          onConfirm={handleDateConfirm}
+          onCancel={() => setDatePickerVisible(false)}
         />
-        <DateTimePickerModal 
-          isVisible={timePickerVisible} 
-          mode="time" 
-          onConfirm={handleTimeConfirm} 
-          onCancel={() => setTimePickerVisible(false)} 
+        <DateTimePickerModal
+          isVisible={timePickerVisible}
+          mode="time"
+          onConfirm={handleTimeConfirm}
+          onCancel={() => setTimePickerVisible(false)}
         />
       </Modal>
 
@@ -275,12 +432,12 @@ const VisitScreen = () => {
         <View style={styles.otpModalContainer}>
           <View style={styles.otpBox}>
             <Icon name="shield-key-outline" size={50} color="#444" />
-            <TextInput 
-              placeholder="Enter OTP" 
-              keyboardType="number-pad" 
-              style={styles.otpInput} 
-              value={otp} 
-              onChangeText={setOtp} 
+            <TextInput
+              placeholder="Enter OTP"
+              keyboardType="number-pad"
+              style={styles.otpInput}
+              value={otp}
+              onChangeText={setOtp}
             />
             <Text style={styles.otpHint}>OTP sent to {form.email}</Text>
             <TouchableOpacity disabled={counter > 0} onPress={handleSendOtp}>
@@ -304,7 +461,7 @@ const VisitScreen = () => {
               <View style={styles.detailContent}>
                 {Object.entries(selectedVisit).map(([key, value]) => {
                   if (key === 'requirements') {
-                    const requirementsList = value.split('\n').filter(item => item.trim());
+                    const requirementsList = value.split('\n').filter((item) => item.trim());
                     return (
                       <View key={key} style={styles.detailRow}>
                         <Text style={styles.detailLabel}>{key.charAt(0).toUpperCase() + key.slice(1)}:</Text>
@@ -317,17 +474,19 @@ const VisitScreen = () => {
                       </View>
                     );
                   } else if (key === 'attachments') {
-                    return value.length > 0 && (
-                      <View key={key} style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>{key.charAt(0).toUpperCase() + key.slice(1)}:</Text>
-                        <FlatList
-                          data={value}
-                          renderItem={renderAttachment}
-                          keyExtractor={(item, index) => index.toString()}
-                          horizontal
-                          style={styles.attachmentsList}
-                        />
-                      </View>
+                    return (
+                      value.length > 0 && (
+                        <View key={key} style={styles.detailRow}>
+                          <Text style={styles.detailLabel}>{key.charAt(0).toUpperCase() + key.slice(1)}:</Text>
+                          <FlatList
+                            data={value}
+                            renderItem={renderDetailAttachment}
+                            keyExtractor={(item, index) => index.toString()}
+                            horizontal
+                            style={styles.attachmentsList}
+                          />
+                        </View>
+                      )
                     );
                   } else if (key !== 'status') {
                     return (
@@ -363,11 +522,7 @@ const VisitScreen = () => {
             <Icon name="close" size={30} color="#fff" />
           </TouchableOpacity>
           {zoomedImage && (
-            <Image
-              source={{ uri: zoomedImage }}
-              style={styles.zoomedImage}
-              resizeMode="contain"
-            />
+            <Image source={{ uri: zoomedImage }} style={styles.zoomedImage} resizeMode="contain" />
           )}
         </View>
       </Modal>
@@ -382,7 +537,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 16,
+    paddingVertical: 10, // Reduced vertical padding
+  paddingHorizontal: 16,
     backgroundColor: '#fff',
     elevation: 3,
   },
@@ -396,7 +552,7 @@ const styles = StyleSheet.create({
   addButtonText: { color: '#fff', fontSize: 16 },
   dataBox: {
     backgroundColor: '#e1f5fe',
-    padding: 16,
+    padding: 8,
     borderRadius: 10,
     marginVertical: 6,
     borderLeftWidth: 6,
@@ -428,7 +584,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     padding: 12,
     borderRadius: 8,
-    marginBottom: 12,
+    marginBottom: 5,
   },
   inputRow: {
     flexDirection: 'row',
@@ -446,7 +602,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#28a745',
     padding: 12,
     borderRadius: 6,
-    marginTop: 10,
+    marginTop: 1,
   },
   sendOtpText: { color: '#fff', fontWeight: 'bold', textAlign: 'center' },
   cancelBtn: { marginTop: 14, alignItems: 'center' },
@@ -540,7 +696,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#6a1b9a',
     padding: 12,
     borderRadius: 6,
-    marginTop: 10,
+    marginTop: 5,
     alignItems: 'center',
   },
   previewImage: {
