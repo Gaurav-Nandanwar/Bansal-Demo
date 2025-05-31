@@ -20,9 +20,9 @@ import { useAuth } from '../context/AuthContext';
 
 import HomeTabs from '../navigation/HomeTabs';
 import VisitScreen from '../screens/VisitScreen';
-// import TimetableScreen from '../screens/TimetableScreen';
+import TodaysVisitScreen from '../screens/TodaysVisitScreen';
 import InquiryScreen from '../screens/InquiryScreen';
-// import ProfileScreen from '../screens/ProfileScreen';
+import TodaysInquiryScreen from '../screens/TodaysInquiryScreen';
 
 const Drawer = createDrawerNavigator();
 
@@ -57,7 +57,7 @@ const CustomDrawerContent = (props) => {
           source={
             userData?.studentimage?.image_url
               ? { uri: userData.studentimage.image_url }
-              : require('../../assets/finewood.png') // fallback avatar
+              : require('../../assets/AGlobia.png') // fallback avatar
           }
           style={styles.profileImage}
               resizeMode="contain"
@@ -75,21 +75,21 @@ const CustomDrawerContent = (props) => {
           onPress={() => props.navigation.navigate('Home')}
         />
         <DrawerItem
-          label="Visitor"
+          label="Visit"
           icon={({ color, size }) => (
             <MaterialCommunityIcons name="nature-people" size={size} color={'white'} />
           )}
           labelStyle={styles.drawerLabel}
-          onPress={() => props.navigation.navigate('Visitor')}
+          onPress={() => props.navigation.navigate('Visit')}
         />
-        {/* <DrawerItem
-          label="Timetable"
+        <DrawerItem
+          label="TodaysVisit"
           icon={({ color, size }) => (
             <MaterialCommunityIcons name="calendar-clock" size={size} color={'white'} />
           )}
           labelStyle={styles.drawerLabel}
-          onPress={() => props.navigation.navigate('Timetable')}
-        /> */}
+          onPress={() => props.navigation.navigate('TodaysVisit')}
+        />
         <DrawerItem
           label="Inquiry"
           icon={({ color, size }) => (
@@ -98,14 +98,14 @@ const CustomDrawerContent = (props) => {
           labelStyle={styles.drawerLabel}
           onPress={() => props.navigation.navigate('Inquiry')}
         />
-        {/* <DrawerItem
-          label="Profile"
+        <DrawerItem
+          label="TodaysInquiry"
           icon={({ color, size }) => (
             <MaterialCommunityIcons name="account-circle-outline" size={size} color={'white'} />
           )}
           labelStyle={styles.drawerLabel}
-          onPress={() => props.navigation.navigate('Profile')}
-        /> */}
+          onPress={() => props.navigation.navigate('TodaysInquiry')}
+        /> 
       </View>
 
       <View style={styles.logoutContainer}>
@@ -130,10 +130,10 @@ const DrawerNavigator = () => {
       drawerContent={(props) => <CustomDrawerContent {...props} />}
     >
       <Drawer.Screen name="Home" component={HomeTabs} />
-      <Drawer.Screen name="Visitor" component={VisitScreen} />
-      {/* <Drawer.Screen name="Timetable" component={TimetableScreen} /> */}
+      <Drawer.Screen name="Visit" component={VisitScreen} />
+      <Drawer.Screen name="TodaysVisit" component={TodaysVisitScreen} />
       <Drawer.Screen name="Inquiry" component={InquiryScreen} />
-      {/* <Drawer.Screen name="Profile" component={ProfileScreen} /> */}
+      <Drawer.Screen name="TodaysInquiry" component={TodaysInquiryScreen} />
 
     </Drawer.Navigator>
   );

@@ -44,6 +44,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@babel/helper-define-polyfill-provider": "^0.6.4",
     "@babel/preset-env": "^7.25.3",
     "@babel/runtime": "^7.25.0",
     "@react-native-community/cli": "18.0.0",

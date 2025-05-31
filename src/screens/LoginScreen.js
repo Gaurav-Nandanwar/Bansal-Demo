@@ -24,24 +24,44 @@ const LoginScreen = () => {
 
     try {
       setLoading(true);
-      const response = await axios.post(
-        'https://finewood-erp.in/finewoodProject/webApi/user/login/',
-        { username: email, password }
-      );
-      setLoading(false);
+      console.log('Attempting login with:', { username: email, password }); // Debug log
 
-      if (response.data.statusCode === '01') {
+      const response = await axios.post(
+        'https://aglobiaerp.com/aglobiaerpProject/webApi/user/login/',
+        { 
+          username: email, 
+          password: password,
+          staff: 7 // Adding staff ID as per API requirements
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        }
+      );
+
+      console.log('Login response:', response.data); // Debug log
+
+      if (response.data && response.data.statusCode === '01') {
         const userDetails = response.data.userProfile.userDetails;
-        setUserData(userDetails); // 👈 store in context
+        setUserData(userDetails);
         Alert.alert('Login Successful', `Welcome, ${userDetails.employeename}`);
         navigation.replace('Dashboard');
       } else {
-        Alert.alert('Login Failed', response.data.msg || 'Invalid credentials');
+        Alert.alert(
+          'Login Failed', 
+          response.data?.msg || 'Invalid credentials. Please check your email and password.'
+        );
       }
     } catch (error) {
+      console.error('Login Error:', error.response?.data || error.message);
+      Alert.alert(
+        'Login Error',
+        error.response?.data?.msg || 'Failed to connect to the server. Please check your internet connection and try again.'
+      );
+    } finally {
       setLoading(false);
-      console.error('Login Error:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again later.');
     }
   };
 
@@ -57,7 +77,7 @@ const LoginScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Image source={require('../../assets/finewood.png')} style={styles.logo} />
+      <Image source={require('../../assets/AGlobia.png')} style={styles.logo} />
       <Text style={styles.title}>User Login</Text>
 
       <TextInput

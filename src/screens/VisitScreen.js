@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {View,Text,TextInput,StyleSheet,TouchableOpacity,Modal,FlatList,KeyboardAvoidingView,Platform,Alert,ScrollView,TouchableWithoutFeedback,Keyboard,Image,} from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Modal, FlatList, KeyboardAvoidingView, Platform, Alert, ScrollView, TouchableWithoutFeedback, Keyboard, Image } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import ImageResizer from 'react-native-image-resizer';
@@ -11,35 +11,43 @@ LogBox.ignoreLogs(['VirtualizedLists should never be nested']); // Ignore warnin
 
 const VisitScreen = () => {
   const [modalVisible, setModalVisible] = useState(false);
-  const [otpModalVisible, setOtpModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [imageZoomModalVisible, setImageZoomModalVisible] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState(null);
   const [selectedVisitIndex, setSelectedVisitIndex] = useState(null);
   const [zoomedImage, setZoomedImage] = useState(null);
-  const [visitId, setVisitId] = useState(null); // Store visit_id for OTP verification
   const [form, setForm] = useState({
     name: '',
     phone: '',
     visitDate: '',
     visitTime: '',
     address: '',
-    email: '',
     requirements: '',
     remark: '',
     attachments: [],
   });
-  const [otp, setOtp] = useState('');
-  const [counter, setCounter] = useState(60);
   const [submittedData, setSubmittedData] = useState([]);
-  const [newVisit, setNewVisit] = useState(null); // Store the most recent submitted visit
+  const [newVisit, setNewVisit] = useState(null);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [timePickerVisible, setTimePickerVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    phone: '',
+    visitDate: '',
+    visitTime: '',
+    address: '',
+    requirements: '',
+    remark: '',
+    attachments: [],
+  });
+  const [editDatePickerVisible, setEditDatePickerVisible] = useState(false);
+  const [editTimePickerVisible, setEditTimePickerVisible] = useState(false);
 
   // Fetch API data when component mounts
   const fetchVisitorData = async () => {
     try {
-      const response = await fetch('https://finewood-erp.in/finewoodProject/webApi/staff/showEmployeeVisitor/', {
+      const response = await fetch('https://aglobiaerp.com/aglobiaerpProject/webApi/staff/showEmployeeVisitor/', {
         headers: {
           'Content-Type': 'application/json',
         },
@@ -49,23 +57,24 @@ const VisitScreen = () => {
       }
       const data = await response.json();
       const transformedData = data.map((item) => ({
-          name: item.name.clientName,
-          phone: item.name.clientMobile,
-          visitDate: item.name.visitDate,
-          visitTime: item.name.visitTime,
-          address: item.name.clientAddress,
-          email: item.name.clientEmail,
-          requirements: item.name.purpose,
-          remark: item.name.remark,
-          status: item.name.status,
-          attachments: item.images.map((img, index) => ({
-            uri: img.image_url,
-            type: 'image/jpeg',
-            name: `image_${index}.jpg`,
-          })),
-        }));
-        setSubmittedData(transformedData);
-        setNewVisit(null); // Reset newVisit on fetch to avoid stale new visits
+        id: item.name.id,
+        name: item.name.clientName,
+        phone: item.name.clientMobile,
+        visitDate: item.name.visitDate,
+        visitTime: item.name.visitTime,
+        address: item.name.clientAddress,
+        email: item.name.clientEmail,
+        requirements: item.name.purpose,
+        remark: item.name.remark,
+        status: item.name.status,
+        attachments: item.images.map((img) => ({
+          uri: img.image_url,
+          type: 'image/jpeg',
+          name: `image_${img.id}.jpg`,
+        })),
+      }));
+      setSubmittedData(transformedData);
+      setNewVisit(null); // Reset newVisit on fetch to avoid stale new visits
     } catch (error) {
       console.error('Error fetching visitor data:', error.message);
       Alert.alert('Error', 'Failed to fetch visitor data. Please check your network and try again.');
@@ -75,14 +84,6 @@ const VisitScreen = () => {
   useEffect(() => {
     fetchVisitorData();
   }, []);
-
-  useEffect(() => {
-    let timer;
-    if (otpModalVisible && counter > 0) {
-      timer = setTimeout(() => setCounter(counter - 1), 1000);
-    }
-    return () => clearTimeout(timer);
-  }, [counter, otpModalVisible]);
 
   const handleDateConfirm = (date) => {
     setForm({ ...form, visitDate: date.toISOString().split('T')[0] });
@@ -101,7 +102,7 @@ const VisitScreen = () => {
     setTimePickerVisible(false);
   };
 
-  const handleAttachmentPick = async () => {
+  const handleAttachmentPick = async (isEdit = false) => {
     try {
       const response = await launchImageLibrary({ 
         mediaType: 'photo', 
@@ -158,17 +159,21 @@ const VisitScreen = () => {
       }
 
       console.log('Final compressed attachments:', compressedAttachments); // Debug log
-      setForm({ ...form, attachments: [...form.attachments, ...compressedAttachments] });
+      if (isEdit) {
+        setEditForm({ ...editForm, attachments: [...editForm.attachments, ...compressedAttachments] });
+      } else {
+        setForm({ ...form, attachments: [...form.attachments, ...compressedAttachments] });
+      }
     } catch (error) {
       console.error('Image picker error:', error);
       Alert.alert('Error', 'Failed to select images. Please try again.');
     }
   };
 
-  const handleSendOtp = async () => {
+  const handleSubmit = async () => {
     // Validate required fields
-    const { name, phone, visitDate, visitTime, address, email, requirements } = form;
-    if (!name || !phone || !visitDate || !visitTime || !address || !email || !requirements) {
+    const { name, phone, visitDate, visitTime, address, requirements } = form;
+    if (!name || !phone || !visitDate || !visitTime || !address || !requirements) {
       Alert.alert('Validation Error', 'All fields are required.');
       return;
     }
@@ -179,24 +184,16 @@ const VisitScreen = () => {
       return;
     }
 
-    // Validate email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Validation Error', 'Please enter a valid email address.');
-      return;
-    }
-
     try {
       const formData = new FormData();
       formData.append('clientName', form.name);
       formData.append('clientMobile', form.phone);
-      formData.append('clientEmail', form.email);
       formData.append('clientAddress', form.address);
       formData.append('visitDate', form.visitDate);
       formData.append('visitTime', form.visitTime);
       formData.append('purpose', form.requirements);
       formData.append('remark', form.remark);
-      formData.append('staff', '13');
+      formData.append('staff', '7');
 
       // Handle image uploads
       if (form.attachments && form.attachments.length > 0) {
@@ -209,9 +206,7 @@ const VisitScreen = () => {
         });
       }
 
-      console.log('FormData being sent:', formData); // Debug log
-
-      const createResponse = await fetch('https://finewood-erp.in/finewoodProject/webApi/staff/createEmployeeVisitor/', {
+      const response = await fetch('https://aglobiaerp.com/aglobiaerpProject/webApi/staff/createEmployeeVisitor/', {
         method: 'POST',
         body: formData,
         headers: {
@@ -221,60 +216,13 @@ const VisitScreen = () => {
         timeout: 30000,
       });
 
-      if (!createResponse.ok) {
-        const errorText = await createResponse.text();
-        console.error('API Error Response:', errorText); // Debug log
-        throw new Error(`HTTP error! status: ${createResponse.status}, message: ${errorText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
 
-      const createData = await createResponse.json();
-      console.log('API Success Response:', createData); // Debug log
-      const visitIdFromResponse = createData.visit_id;
-      if (!visitIdFromResponse) {
-        throw new Error('Visit ID not returned from API');
-      }
-      setVisitId(visitIdFromResponse);
-
-      // Open OTP modal
-      setOtpModalVisible(true);
-      setCounter(60);
-      setOtp('');
-      Alert.alert('OTP Sent', `OTP sent to ${form.email}`);
-    } catch (error) {
-      console.error('Error sending OTP or submitting visit:', error.message);
-      Alert.alert('Error', `Failed to submit visit: ${error.message}. Please try again later.`);
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!otp) {
-      Alert.alert('Validation Error', 'Please enter the OTP.');
-      return;
-    }
-
-    try {
-      const otpResponse = await fetch('https://finewood-erp.in/finewoodProject/webApi/staff/verifyVisitorOTP/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          visit_id: visitId,
-          otp: otp,
-        }),
-        timeout: 15000, // 15-second timeout
-      });
-
-      if (!otpResponse.ok) {
-        const errorText = await otpResponse.text();
-        throw new Error(`HTTP error! status: ${otpResponse.status}, message: ${errorText}`);
-      }
-
-      const otpData = await otpResponse.json();
-      if (!otpData.success) {
-        throw new Error(otpData.message || 'Failed to verify OTP');
-      }
-
+      const data = await response.json();
+      
       // Create new visit object from form
       const visit = {
         name: form.name,
@@ -282,10 +230,9 @@ const VisitScreen = () => {
         visitDate: form.visitDate,
         visitTime: form.visitTime,
         address: form.address,
-        email: form.email,
         requirements: form.requirements,
         remark: form.remark,
-        status: otpData.status || 'Pending', // Use status from API if available
+        status: 'Pending',
         attachments: form.attachments,
       };
 
@@ -295,25 +242,31 @@ const VisitScreen = () => {
       // Refresh submittedData to include the new visit from the server
       await fetchVisitorData();
 
-      // Reset form and close modals
+      // Reset form and close modal
       setForm({
         name: '',
         phone: '',
         visitDate: '',
         visitTime: '',
         address: '',
-        email: '',
         requirements: '',
         remark: '',
         attachments: [],
       });
       setModalVisible(false);
-      setOtpModalVisible(false);
-      setVisitId(null);
-      Alert.alert('Success', otpData.message || 'Visit submitted and OTP verified successfully');
+      Alert.alert('Success', 'Visit submitted successfully', [
+        {
+          text: 'View Today\'s Visits',
+          onPress: () => navigation.navigate('TodaysVisit'),
+        },
+        {
+          text: 'OK',
+          style: 'cancel',
+        },
+      ]);
     } catch (error) {
-      console.error('Error verifying OTP:', error.message);
-      Alert.alert('Error', error.message || 'Failed to verify OTP. Please try again later.');
+      console.error('Error submitting visit:', error.message);
+      Alert.alert('Error', `Failed to submit visit: ${error.message}. Please try again later.`);
     }
   };
 
@@ -411,6 +364,11 @@ const VisitScreen = () => {
       <Text style={styles.dataText}>
         <Text style={styles.bold}>Status:</Text> {item.status}
       </Text>
+      {item.attachments && item.attachments.length > 0 && (
+        <Text style={styles.dataText}>
+          <Text style={styles.bold}>Images:</Text> {item.attachments.length}
+        </Text>
+      )}
     </TouchableOpacity>
   );
 
@@ -442,6 +400,91 @@ const VisitScreen = () => {
       );
     }
     return null;
+  };
+
+  const openEditModal = (visit) => {
+    setEditForm({
+      name: visit.name,
+      phone: visit.phone,
+      visitDate: visit.visitDate,
+      visitTime: visit.visitTime,
+      address: visit.address,
+      requirements: visit.requirements,
+      remark: visit.remark,
+      attachments: visit.attachments || [],
+    });
+    setEditModalVisible(true);
+    setDetailModalVisible(false);
+  };
+
+  const handleEditDateConfirm = (date) => {
+    setEditForm({ ...editForm, visitDate: date.toISOString().split('T')[0] });
+    setEditDatePickerVisible(false);
+  };
+
+  const handleEditTimeConfirm = (time) => {
+    setEditForm({
+      ...editForm,
+      visitTime: time.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }),
+    });
+    setEditTimePickerVisible(false);
+  };
+
+  const handleEditSubmit = async () => {
+    try {
+      const formData = new FormData();
+      formData.append('clientName', editForm.name);
+      formData.append('clientMobile', editForm.phone);
+      formData.append('clientAddress', editForm.address);
+      formData.append('visitDate', editForm.visitDate);
+      formData.append('visitTime', editForm.visitTime);
+      formData.append('purpose', editForm.requirements);
+      formData.append('remark', editForm.remark);
+      formData.append('staff', '7');
+
+      // Handle image uploads
+      if (editForm.attachments && editForm.attachments.length > 0) {
+        editForm.attachments.forEach((attachment) => {
+          formData.append('images', {
+            uri: Platform.OS === 'ios' ? attachment.uri.replace('file://228', '') : attachment.uri,
+            type: 'image/jpeg',
+            name: attachment.name
+          });
+        });
+      }
+
+      const response = await fetch(
+        `https://aglobiaerp.com/aglobiaerpProject/webApi/staff/updateEmployeeVisitor/${selectedVisit.id}/`,
+        {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Accept': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to update visit');
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        Alert.alert('Success', data.message || 'Visit updated successfully');
+        setEditModalVisible(false);
+        fetchVisitorData(); // Refresh the list
+      } else {
+        throw new Error(data.message || 'Failed to update visit');
+      }
+    } catch (error) {
+      console.error('Error updating visit:', error);
+      Alert.alert('Error', error.message || 'Failed to update visit. Please try again.');
+    }
   };
 
   return (
@@ -503,13 +546,6 @@ const VisitScreen = () => {
                   onChangeText={(val) => setForm({ ...form, address: val })}
                 />
                 <TextInput
-                  placeholder="Email"
-                  style={styles.input}
-                  keyboardType="email-address"
-                  value={form.email}
-                  onChangeText={(val) => setForm({ ...form, email: val })}
-                />
-                <TextInput
                   placeholder="Requirements"
                   style={[styles.input, { minHeight: 100 }]}
                   multiline
@@ -523,7 +559,7 @@ const VisitScreen = () => {
                   value={form.remark}
                   onChangeText={(val) => setForm({ ...form, remark: val })}
                 />
-                <TouchableOpacity style={styles.photoButton} onPress={handleAttachmentPick}>
+                <TouchableOpacity style={styles.photoButton} onPress={() => handleAttachmentPick(false)}>
                   <Text style={styles.sendOtpText}>Add Attachments</Text>
                 </TouchableOpacity>
                 <FlatList
@@ -533,8 +569,8 @@ const VisitScreen = () => {
                   horizontal
                   style={styles.attachmentsList}
                 />
-                <TouchableOpacity style={styles.sendOtpButton} onPress={handleSendOtp}>
-                  <Text style={styles.sendOtpText}>Send OTP</Text>
+                <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+                  <Text style={styles.submitButtonText}>Submit</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.cancelBtn}>
                   <Text style={styles.cancelText}>Cancel</Text>
@@ -558,35 +594,10 @@ const VisitScreen = () => {
         />
       </Modal>
 
-      {/* OTP Modal */}
-      <Modal visible={otpModalVisible} transparent animationType="fade">
-        <View style={styles.otpModalContainer}>
-          <View style={styles.otpBox}>
-            <Icon name="shield-key-outline" size={50} color="#444" />
-            <TextInput
-              placeholder="Enter OTP"
-              keyboardType="number-pad"
-              style={styles.otpInput}
-              value={otp}
-              onChangeText={setOtp}
-            />
-            <Text style={styles.otpHint}>OTP sent to {form.email}</Text>
-            <TouchableOpacity disabled={counter > 0} onPress={handleSendOtp}>
-              <Text style={[styles.resendText, { color: counter > 0 ? 'gray' : 'blue' }]}>
-                {counter > 0 ? `Resend OTP in ${counter}s` : 'Resend OTP'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
-              <Text style={styles.submitText}>Submit</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
       {/* Detail View Modal */}
       <Modal visible={detailModalVisible} transparent animationType="fade">
         <View style={styles.detailModalContainer}>
-          <View style={styles.detailBox}>
+          <ScrollView contentContainerStyle={styles.detailBox}>
             <Text style={styles.detailTitle}>Visit Details</Text>
             {selectedVisit && (
               <View style={styles.detailContent}>
@@ -610,18 +621,14 @@ const VisitScreen = () => {
                       value.length > 0 && (
                         <View key={key} style={styles.detailRow}>
                           <Text style={styles.detailLabel}>{key.charAt(0).toUpperCase() + key.slice(1)}:</Text>
-                          <View style={styles.attachmentsList}>
-                            {value.map((item, index) => (
-                              <View key={index} style={styles.attachmentContainer}>
-                                <TouchableOpacity onPress={() => handleImageZoom(item.uri)}>
-                                  <Image source={{ uri: item.uri }} style={styles.previewImage} />
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.deleteButton} onPress={() => handleDeleteDetailAttachment(index)}>
-                                  <Icon name="delete" size={20} color="#fff" />
-                                </TouchableOpacity>
-                              </View>
-                            ))}
-                          </View>
+                          <FlatList
+                            data={value}
+                            renderItem={renderDetailAttachment}
+                            keyExtractor={(item, index) => index.toString()}
+                            horizontal
+                            style={styles.attachmentsList}
+                            contentContainerStyle={styles.attachmentsContent}
+                          />
                         </View>
                       )
                     );
@@ -637,11 +644,102 @@ const VisitScreen = () => {
                 })}
               </View>
             )}
-            <TouchableOpacity onPress={() => setDetailModalVisible(false)} style={styles.closeDetailBtn}>
-              <Text style={{ color: '#fff' }}>Close</Text>
-            </TouchableOpacity>
-          </View>
+            <View style={styles.detailButtons}>
+              <TouchableOpacity style={styles.editButton} onPress={() => openEditModal(selectedVisit)}>
+                <Text style={styles.buttonText}>Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.closeButton} onPress={() => setDetailModalVisible(false)}>
+                <Text style={styles.buttonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </View>
+      </Modal>
+
+      {/* Edit Visit Modal */}
+      <Modal visible={editModalVisible} animationType="slide" transparent>
+        <View style={styles.modalPopup}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardAvoidingView}>
+            <ScrollView contentContainerStyle={styles.editModalContent}>
+              <Text style={styles.modalTitle}>Edit Visit</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  placeholder="Full Name"
+                  style={styles.input}
+                  value={editForm.name}
+                  onChangeText={(val) => setEditForm({ ...editForm, name: val })}
+                />
+                <TextInput
+                  placeholder="Phone Number"
+                  style={styles.input}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  value={editForm.phone}
+                  onChangeText={(val) => setEditForm({ ...editForm, phone: val.replace(/[^0-9]/g, '') })}
+                />
+                <TouchableOpacity style={styles.inputRow} onPress={() => setEditDatePickerVisible(true)}>
+                  <Text style={styles.inputText}>{editForm.visitDate || 'Select Visit Date'}</Text>
+                  <Icon name="calendar" size={22} color="#555" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.inputRow} onPress={() => setEditTimePickerVisible(true)}>
+                  <Text style={styles.inputText}>{editForm.visitTime || 'Select Visit Time'}</Text>
+                  <Icon name="clock-outline" size={22} color="#555" />
+                </TouchableOpacity>
+                <TextInput
+                  placeholder="Address"
+                  style={styles.input}
+                  value={editForm.address}
+                  onChangeText={(val) => setEditForm({ ...editForm, address: val })}
+                />
+                <TextInput
+                  placeholder="Requirements"
+                  style={[styles.input, { minHeight: 100 }]}
+                  multiline
+                  value={editForm.requirements}
+                  onChangeText={(val) => setEditForm({ ...editForm, requirements: val })}
+                />
+                <TextInput
+                  placeholder="Remark"
+                  style={[styles.input, { minHeight: 50 }]}
+                  multiline
+                  value={editForm.remark}
+                  onChangeText={(val) => setEditForm({ ...editForm, remark: val })}
+                />
+                <TouchableOpacity style={styles.photoButton} onPress={() => handleAttachmentPick(true)}>
+                  <Text style={styles.sendOtpText}>Add Attachments</Text>
+                </TouchableOpacity>
+                <FlatList
+                  data={editForm.attachments}
+                  renderItem={renderAttachment}
+                  keyExtractor={(item, index) => index.toString()}
+                  horizontal
+                  style={styles.attachmentsList}
+                />
+              </View>
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity style={styles.submitButton} onPress={() => handleEditSubmit()}>
+                  <Text style={styles.submitButtonText}>Update</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelButton} onPress={() => setEditModalVisible(false)}>
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+
+        <DateTimePickerModal
+          isVisible={editDatePickerVisible}
+          mode="date"
+          onConfirm={handleEditDateConfirm}
+          onCancel={() => setEditDatePickerVisible(false)}
+        />
+        <DateTimePickerModal
+          isVisible={editTimePickerVisible}
+          mode="time"
+          onConfirm={handleEditTimeConfirm}
+          onCancel={() => setEditTimePickerVisible(false)}
+        />
       </Modal>
 
       {/* Image Zoom Modal */}
@@ -674,7 +772,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 10, // Reduced vertical padding
+    paddingVertical: 10,
     paddingHorizontal: 16,
     backgroundColor: '#fff',
     elevation: 3,
@@ -699,15 +797,32 @@ const styles = StyleSheet.create({
   bold: { fontWeight: 'bold' },
   modalPopup: {
     flex: 1,
-    justifyContent: 'center',
     backgroundColor: '#000000aa',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  keyboardAvoidingView: {
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContent: {
     backgroundColor: '#fff',
-    margin: 20,
-    borderRadius: 20,
-    padding: 20,
-    elevation: 5,
+    padding: 24,
+    borderRadius: 16,
+    width: '95%',
+    maxWidth: 600,
+    marginVertical: 20,
+  },
+  editModalContent: {
+    backgroundColor: '#fff',
+    padding: 24,
+    borderRadius: 16,
+    width: 350, // Fixed width to accommodate ~3 attachments
+    minWidth: 350, // Ensure minimum width
+    minHeight: 600,
+    maxHeight: '100%',
+    justifyContent: 'center',
   },
   modalTitle: {
     fontSize: 22,
@@ -735,45 +850,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   inputText: { color: '#444', fontSize: 15 },
-  sendOtpButton: {
-    backgroundColor: '#28a745',
-    padding: 12,
-    borderRadius: 6,
-    marginTop: 1,
-  },
   sendOtpText: { color: '#fff', fontWeight: 'bold', textAlign: 'center' },
   cancelBtn: { marginTop: 14, alignItems: 'center' },
   cancelText: { color: 'red', fontWeight: 'bold' },
-  otpModalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    backgroundColor: '#000000aa',
-  },
-  otpBox: {
-    backgroundColor: '#fff',
-    margin: 30,
-    borderRadius: 10,
-    padding: 24,
-    alignItems: 'center',
-  },
-  otpInput: {
-    borderBottomWidth: 1,
-    width: '80%',
-    textAlign: 'center',
-    fontSize: 20,
-    marginTop: 20,
-  },
-  otpHint: { marginTop: 10, fontSize: 14, color: '#555' },
-  resendText: { marginTop: 12, fontSize: 14 },
-  submitBtn: {
-    backgroundColor: '#007bff',
-    marginTop: 20,
-    padding: 10,
-    borderRadius: 6,
-    width: '80%',
-    alignItems: 'center',
-  },
-  submitText: { color: '#fff', fontWeight: 'bold' },
   detailModalContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -785,6 +864,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     elevation: 5,
+    width: '90%',
+    maxWidth: 500,
   },
   detailTitle: {
     fontSize: 20,
@@ -799,6 +880,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 10,
     alignItems: 'flex-start',
+    flexWrap: 'wrap',
   },
   detailLabel: {
     width: 120,
@@ -822,13 +904,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-  closeDetailBtn: {
-    backgroundColor: '#3f51b5',
-    padding: 10,
-    marginTop: 16,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
   photoButton: {
     backgroundColor: '#6a1b9a',
     padding: 12,
@@ -837,15 +912,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   previewImage: {
-    width: 100,
-    height: 100,
+    width: 80,
+    height: 80,
     borderRadius: 8,
     marginRight: 10,
     resizeMode: 'cover',
   },
   attachmentsList: {
     marginVertical: 10,
-    maxHeight: 120,
+    maxHeight: 100,
+  },
+  attachmentsContent: {
+    flexGrow: 1,
+    paddingRight: 10,
   },
   attachmentContainer: {
     position: 'relative',
@@ -893,5 +972,60 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
+  },
+  submitButton: {
+    backgroundColor: '#28a745',
+    padding: 12,
+    borderRadius: 6,
+    marginTop: 1,
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontSize: 16,
+  },
+  detailButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    gap: 10,
+  },
+  editButton: {
+    backgroundColor: '#4a90e2',
+    padding: 10,
+    borderRadius: 6,
+    flex: 1,
+  },
+  closeButton: {
+    backgroundColor: '#3f51b5',
+    padding: 10,
+    borderRadius: 6,
+    flex: 1,
+  },
+  buttonText: {
+    color: '#fff',
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    gap: 10,
+  },
+  cancelButton: {
+    backgroundColor: '#f44336',
+    padding: 12,
+    borderRadius: 6,
+    flex: 1,
+  },
+  cancelButtonText: {
+    color: '#fff',
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+  inputContainer: {
+    width: '100%',
   },
 });
