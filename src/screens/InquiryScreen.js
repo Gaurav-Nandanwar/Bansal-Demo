@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet, Text, View, Modal, TextInput, TouchableOpacity,
-  ScrollView, KeyboardAvoidingView, Platform, Alert
+  ScrollView, KeyboardAvoidingView, Platform, Alert, RefreshControl
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import moment from 'moment';
 import Header from '../components/Header';
 import axios from 'axios';
+import { useNavigation } from '@react-navigation/native';
 
 const InquiryScreen = () => {
+  const navigation = useNavigation();
   const [modalVisible, setModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -16,6 +18,7 @@ const InquiryScreen = () => {
   const [inquiries, setInquiries] = useState([]);
   const [recentInquiries, setRecentInquiries] = useState([]);
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [form, setForm] = useState({
     clientName: '',
     email: '',
@@ -26,8 +29,10 @@ const InquiryScreen = () => {
     budget: '',
     followup1: '',
     status: 'Pending',
-    remark: '',
+    reason: '',
   });
+  const [historyModalVisible, setHistoryModalVisible] = useState(false);
+  const [inquiryHistory, setInquiryHistory] = useState([]);
 
   const initialFormState = {
     clientName: '',
@@ -39,7 +44,7 @@ const InquiryScreen = () => {
     budget: '',
     followup1: '',
     status: 'Pending',
-    remark: '',
+    reason: '',
   };
 
   const handleInputChange = (field, value) => {
@@ -54,14 +59,14 @@ const InquiryScreen = () => {
   const fetchInquiries = async () => {
     try {
       const response = await axios.get(
-        'https://finewood-erp.in/finewoodProject/webApi/staff/showEmployeeInquiry/'
+        'https://aglobiaerp.com/aglobiaerpProject/webApi/staff/showEmployeeInquiry/'
       );
 
       if (response.status === 200 && Array.isArray(response.data)) {
         const formatted = response.data.map((item) => {
           const data = item.name;
           return {
-            id: data.id || item.id || Date.now().toString(),
+            id: data.id,
             clientName: data.clientName,
             email: data.email,
             mobileNo: data.mobileNo,
@@ -70,8 +75,8 @@ const InquiryScreen = () => {
             productDetails: data.productDetails,
             budget: data.budget?.toString() ?? '',
             followup1: data.followup1,
-            status: data.status || 'Pending',
-            remark: data.remark || '',
+            status: data.inquirystatus || 'Pending',
+            reason: data.reason || '',
           };
         });
         setInquiries(formatted);
@@ -81,6 +86,17 @@ const InquiryScreen = () => {
       Alert.alert('Error', 'Failed to fetch inquiries. Please check your network and try again.');
     }
   };
+
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchInquiries();
+    } catch (error) {
+      console.error('Error refreshing inquiries:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     setRecentInquiries([]); // Clear recent inquiries on mount (new session)
@@ -117,9 +133,9 @@ const InquiryScreen = () => {
 
     try {
       const response = await axios.post(
-        'https://finewood-erp.in/finewoodProject/webApi/staff/createEmployeeInquiry/',
+        'https://aglobiaerp.com/aglobiaerpProject/webApi/staff/createEmployeeInquiry/',
         {
-          staff: 13,
+          staff: 7,
           clientName,
           email,
           mobileNo,
@@ -127,7 +143,7 @@ const InquiryScreen = () => {
           address,
           productDetails,
           followup1,
-          budget,
+          budget: budget.toString(),
         },
         {
           headers: {
@@ -137,27 +153,28 @@ const InquiryScreen = () => {
       );
 
       if (response.status === 200) {
-        Alert.alert('Success', 'Inquiry submitted successfully.');
-        // Create new inquiry object
-        const newInquiry = {
-          id: response.data.id || Date.now().toString(),
-          clientName,
-          email,
-          mobileNo,
-          whatappNo,
-          address,
-          productDetails,
-          budget,
-          followup1,
-          status: 'Pending',
-          remark: '',
-        };
-        // Add to recent inquiries
-        setRecentInquiries([newInquiry, ...recentInquiries]);
-        // Refresh inquiries from server
-        await fetchInquiries();
-        setModalVisible(false);
-        setForm(initialFormState); // Reset form
+        Alert.alert(
+          'Success',
+          'Inquiry submitted successfully.',
+          [
+            {
+              text: 'View Today\'s Inquiries',
+              onPress: () => {
+                setModalVisible(false);
+                setForm(initialFormState);
+                navigation.navigate('TodaysInquiry');
+              },
+            },
+            {
+              text: 'Stay Here',
+              onPress: () => {
+                setModalVisible(false);
+                setForm(initialFormState);
+              },
+              style: 'cancel',
+            },
+          ]
+        );
       } else {
         Alert.alert('Error', 'Failed to submit inquiry. Please try again.');
       }
@@ -168,7 +185,7 @@ const InquiryScreen = () => {
   };
 
   const handleEdit = async () => {
-    const { clientName, email, mobileNo, whatappNo, address, productDetails, budget, followup1, remark } = form;
+    const { clientName, email, mobileNo, whatappNo, address, productDetails, budget, followup1, reason } = form;
 
     // Validation for required fields
     if (!clientName || !email || !mobileNo || !whatappNo || !address || !productDetails || !budget || !followup1) {
@@ -197,8 +214,9 @@ const InquiryScreen = () => {
 
     try {
       const response = await axios.post(
-        `https://finewood-erp.in/finewoodProject/webApi/staff/updateEmployeeInquiry/${selectedInquiry.id}/`,
+        `https://aglobiaerp.com/aglobiaerpProject/webApi/staff/updateEmployeeInquiry/${selectedInquiry.id}/`,
         {
+          staff: 7,
           clientName,
           email,
           mobileNo,
@@ -206,8 +224,8 @@ const InquiryScreen = () => {
           address,
           productDetails,
           followup1,
-          budget,
-          remark,
+          budget: budget.toString(),
+          reason: reason || 'Updated inquiry details',
         },
         {
           headers: {
@@ -218,10 +236,10 @@ const InquiryScreen = () => {
 
       if (response.status === 200) {
         Alert.alert('Success', response.data.message || 'Inquiry updated successfully.');
-        await fetchInquiries(); // Refresh inquiries from server
+        await fetchInquiries();
         setEditModalVisible(false);
         setDetailModalVisible(false);
-        setForm(initialFormState); // Reset form
+        setForm(initialFormState);
       } else {
         Alert.alert('Error', response.data.message || 'Failed to update inquiry.');
       }
@@ -247,7 +265,7 @@ const InquiryScreen = () => {
       budget: selectedInquiry.budget,
       followup1: selectedInquiry.followup1,
       status: selectedInquiry.status,
-      remark: selectedInquiry.remark || '',
+      reason: '',
     });
     setDetailModalVisible(false);
     setEditModalVisible(true);
@@ -257,6 +275,64 @@ const InquiryScreen = () => {
     setForm(initialFormState); // Reset form when opening Add modal
     setModalVisible(true);
   };
+
+  const fetchInquiryHistory = async (inquiryId) => {
+    try {
+      const response = await axios.get(
+        `https://aglobiaerp.com/aglobiaerpProject/webApi/staff/InquiryHistroy/${inquiryId}/`
+      );
+
+      if (response.status === 200 && Array.isArray(response.data)) {
+        const formatted = response.data.map(item => {
+          const data = item.name;
+          return {
+            id: data.id,
+            clientName: data.clientName,
+            mobileNo: data.mobileNo,
+            email: data.email,
+            address: data.address,
+            productView: data.productView,
+            reason: data.reason,
+            // followupReason: data.followupReason,
+            followup: data.followup,
+          };
+        });
+        setInquiryHistory(formatted);
+        setHistoryModalVisible(true);
+      }
+    } catch (error) {
+      console.error('Fetch Inquiry History Error:', error);
+      Alert.alert('Error', 'Failed to fetch inquiry history. Please try again.');
+    }
+  };
+
+  const renderItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.inquiryBox}
+      onPress={() => openDetailModal(item)}
+    >
+      <View style={styles.inquiryContent}>
+        <View style={styles.inquiryInfo}>
+          <Text style={styles.inquiryText}>
+            <Text style={styles.label}>Name:</Text> {item.clientName}
+          </Text>
+          <Text style={styles.inquiryText}>
+            <Text style={styles.label}>Contact:</Text> {item.mobileNo}
+          </Text>
+          <Text style={styles.inquiryText}>
+            <Text style={styles.label}>Budget:</Text> ₹{item.budget}
+          </Text>
+          <Text style={styles.inquiryStatus}>Status: {item.status}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.historyButton}
+          onPress={() => fetchInquiryHistory(item.id)}
+        >
+          <Text style={styles.historyButtonText}>History</Text>
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
@@ -268,33 +344,71 @@ const InquiryScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.inquiryList}>
+      <ScrollView 
+        contentContainerStyle={styles.inquiryList}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#ff4081']}
+            tintColor="#ff4081"
+            title="Pull to refresh"
+            titleColor="#666"
+          />
+        }
+      >
         {/* Recent Inquiries */}
         {recentInquiries.length > 0 && recentInquiries.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={styles.inquiryBox}
-            onPress={() => openDetailModal(item)}
-          >
-            <Text style={styles.inquiryText}><Text style={styles.label}>Name:</Text> {item.clientName}</Text>
-            <Text style={styles.inquiryText}><Text style={styles.label}>Contact:</Text> {item.mobileNo}</Text>
-            <Text style={styles.inquiryStatus}>Status: {item.status}</Text>
-          </TouchableOpacity>
+          <View key={item.id} style={styles.inquiryBox}>
+            <View style={styles.inquiryContent}>
+              <View style={styles.inquiryInfo}>
+                <Text style={styles.inquiryText}>
+                  <Text style={styles.label}>Name:</Text> {item.clientName}
+                </Text>
+                <Text style={styles.inquiryText}>
+                  <Text style={styles.label}>Contact:</Text> {item.mobileNo}
+                </Text>
+                <Text style={styles.inquiryText}>
+                  <Text style={styles.label}>Budget:</Text> ₹{item.budget}
+                </Text>
+                <Text style={styles.inquiryStatus}>Status: {item.status}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.historyButton}
+                onPress={() => fetchInquiryHistory(item.id)}
+              >
+                <Text style={styles.historyButtonText}>History</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         ))}
         {/* History Section */}
         {inquiries.length > 0 && (
           <>
             <Text style={styles.historyTitle}>History</Text>
             {inquiries.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.inquiryBox}
-                onPress={() => openDetailModal(item)}
-              >
-                <Text style={styles.inquiryText}><Text style={styles.label}>Name:</Text> {item.clientName}</Text>
-                <Text style={styles.inquiryText}><Text style={styles.label}>Contact:</Text> {item.mobileNo}</Text>
-                <Text style={styles.inquiryStatus}>Status: {item.status}</Text>
-              </TouchableOpacity>
+              <View key={item.id} style={styles.inquiryBox}>
+                <View style={styles.inquiryContent}>
+                  <View style={styles.inquiryInfo}>
+                    <Text style={styles.inquiryText}>
+                      <Text style={styles.label}>Name:</Text> {item.clientName}
+                    </Text>
+                    <Text style={styles.inquiryText}>
+                      <Text style={styles.label}>Contact:</Text> {item.mobileNo}
+                    </Text>
+                    <Text style={styles.inquiryText}>
+                      <Text style={styles.label}>Budget:</Text> ₹{item.budget}
+                    </Text>
+                    <Text style={styles.inquiryStatus}>Status: {item.status}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.historyButton}
+                    onPress={() => fetchInquiryHistory(item.id)}
+                  >
+                    <Text style={styles.historyButtonText}>History</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             ))}
           </>
         )}
@@ -309,7 +423,7 @@ const InquiryScreen = () => {
           <View style={styles.modalView}>
             <ScrollView contentContainerStyle={styles.formContainer}>
               <Text style={styles.modalTitle}>New Inquiry</Text>
-              {['clientName', 'email', 'mobileNo', 'whatappNo', 'address', 'budget', 'remark'].map((field, idx) => (
+              {['clientName', 'email', 'mobileNo', 'whatappNo', 'address', 'budget'].map((field, idx) => (
                 <TextInput
                   key={idx}
                   style={styles.input}
@@ -364,7 +478,7 @@ const InquiryScreen = () => {
           <View style={styles.modalView}>
             <ScrollView contentContainerStyle={styles.formContainer}>
               <Text style={styles.modalTitle}>Edit Inquiry</Text>
-              {['clientName', 'email', 'mobileNo', 'whatappNo', 'address', 'budget', 'remark'].map((field, idx) => (
+              {['clientName', 'email', 'mobileNo', 'whatappNo', 'address', 'budget', 'reason'].map((field, idx) => (
                 <TextInput
                   key={idx}
                   style={styles.input}
@@ -403,7 +517,7 @@ const InquiryScreen = () => {
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.cancelButton} onPress={() => {
                   setEditModalVisible(false);
-                  setForm(initialFormState); // Reset form on cancel
+                  setForm(initialFormState);
                 }}>
                   <Text style={styles.buttonText}>Cancel</Text>
                 </TouchableOpacity>
@@ -419,14 +533,52 @@ const InquiryScreen = () => {
           <View style={styles.detailBox}>
             <Text style={styles.detailTitle}>Inquiry Detail</Text>
             <ScrollView contentContainerStyle={styles.detailScroll}>
-              {selectedInquiry && Object.entries(selectedInquiry).map(([key, value]) => (
-                key !== 'id' && (
-                  <View key={key} style={styles.detailItem}>
-                    <Text style={styles.detailLabel}>{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: </Text>
-                    <Text style={styles.detailValue}>{value}</Text>
+              {selectedInquiry && (
+                <>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Name: </Text>
+                    <Text style={styles.detailValue}>{selectedInquiry.clientName}</Text>
                   </View>
-                )
-              ))}
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Email: </Text>
+                    <Text style={styles.detailValue}>{selectedInquiry.email}</Text>
+                  </View>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Mobile: </Text>
+                    <Text style={styles.detailValue}>{selectedInquiry.mobileNo}</Text>
+                  </View>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>WhatsApp: </Text>
+                    <Text style={styles.detailValue}>{selectedInquiry.whatappNo}</Text>
+                  </View>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Address: </Text>
+                    <Text style={styles.detailValue}>{selectedInquiry.address}</Text>
+                  </View>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Product Details: </Text>
+                    <Text style={styles.detailValue}>{selectedInquiry.productDetails}</Text>
+                  </View>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Budget: </Text>
+                    <Text style={styles.detailValue}>₹{selectedInquiry.budget}</Text>
+                  </View>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Follow-up Date: </Text>
+                    <Text style={styles.detailValue}>{selectedInquiry.followup1}</Text>
+                  </View>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Status: </Text>
+                    <Text style={styles.detailValue}>{selectedInquiry.status}</Text>
+                  </View>
+                  {selectedInquiry.reason && (
+                    <View style={styles.detailItem}>
+                      <Text style={styles.detailLabel}>Reason: </Text>
+                      <Text style={styles.detailValue}>{selectedInquiry.reason}</Text>
+                    </View>
+                  )}
+                </>
+              )}
             </ScrollView>
             <View style={styles.buttonContainer}>
               <TouchableOpacity style={styles.submitButton} onPress={openEditModal}>
@@ -434,6 +586,74 @@ const InquiryScreen = () => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.closeButton} onPress={() => setDetailModalVisible(false)}>
                 <Text style={styles.buttonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* History Modal */}
+      <Modal
+        visible={historyModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setHistoryModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.historyBox}>
+            <View style={styles.historyHeader}>
+              <Text style={styles.historyTitle}>Inquiry History</Text>
+            </View>
+            <ScrollView 
+              contentContainerStyle={styles.historyContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {inquiryHistory.map((item, index) => (
+                <View key={index} style={styles.historyItem}>
+                  <View style={styles.historyRow}>
+                    <Text style={styles.historyLabel}>Name:</Text>
+                    <Text style={styles.historyValue}>{item.clientName}</Text>
+                  </View>
+                  <View style={styles.historyRow}>
+                    <Text style={styles.historyLabel}>Mobile:</Text>
+                    <Text style={styles.historyValue}>{item.mobileNo}</Text>
+                  </View>
+                  <View style={styles.historyRow}>
+                    <Text style={styles.historyLabel}>Email:</Text>
+                    <Text style={styles.historyValue}>{item.email}</Text>
+                  </View>
+                  <View style={styles.historyRow}>
+                    <Text style={styles.historyLabel}>Address:</Text>
+                    <Text style={styles.historyValue}>{item.address}</Text>
+                  </View>
+                  <View style={styles.historyRow}>
+                    <Text style={styles.historyLabel}>Product:</Text>
+                    <Text style={styles.historyValue}>{item.productView}</Text>
+                  </View>
+                  <View style={styles.historyRow}>
+                    <Text style={styles.historyLabel}>Reason:</Text>
+                    <Text style={styles.historyValue}>{item.reason}</Text>
+                  </View>
+                  {/* <View style={styles.historyRow}>
+                    <Text style={styles.historyLabel}>Follow-up Reason:</Text>
+                    <Text style={styles.historyValue}>{item.followupReason}</Text>
+                  </View> */}
+                  <View style={styles.historyRow}>
+                    <Text style={styles.historyLabel}>Follow-up Date:</Text>
+                    <Text style={styles.historyValue}>{item.followup}</Text>
+                  </View>
+                  {index < inquiryHistory.length - 1 && (
+                    <View style={styles.historyDivider} />
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+            <View style={styles.historyFooter}>
+              <TouchableOpacity
+                style={styles.closeHistoryButton}
+                onPress={() => setHistoryModalVisible(false)}
+              >
+                <Text style={styles.closeHistoryButtonText}>Close History</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -461,47 +681,79 @@ const styles = StyleSheet.create({
   },
   addButtonText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' },
   modalContainer: {
-    flex: 1, justifyContent: 'center',
+    flex: 1,
+    justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalView: {
-    margin: 20, backgroundColor: '#fff',
-    borderRadius: 10, padding: 20, elevation: 5,
+    margin: 20,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 20,
+    elevation: 5,
   },
   formContainer: { paddingBottom: 20 },
   modalTitle: {
-    fontSize: 18, fontWeight: 'bold',
-    marginBottom: 15, textAlign: 'center', color: '#4a90e2',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'center',
+    color: '#4a90e2',
   },
   input: {
-    height: 40, borderColor: '#ccc', borderWidth: 1,
-    borderRadius: 5, marginBottom: 10, paddingHorizontal: 10,
+    height: 40,
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 5,
+    marginBottom: 10,
+    paddingHorizontal: 10,
   },
   bigInput: {
-    height: 100, textAlignVertical: 'top',
-    borderColor: '#ccc', borderWidth: 1,
-    borderRadius: 5, marginBottom: 10, paddingHorizontal: 10,
+    height: 100,
+    textAlignVertical: 'top',
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 5,
+    marginBottom: 10,
+    paddingHorizontal: 10,
   },
   dateInput: {
-    height: 40, borderColor: '#ccc', borderWidth: 1,
-    borderRadius: 5, justifyContent: 'center',
-    paddingHorizontal: 10, marginBottom: 10,
+    height: 40,
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 5,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    marginBottom: 10,
   },
   dateInputText: { color: '#555' },
   buttonContainer: {
-    flexDirection: 'row', justifyContent: 'space-between',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   submitButton: {
-    backgroundColor: '#4a90e2', paddingVertical: 10,
-    paddingHorizontal: 20, borderRadius: 5, flex: 1, marginRight: 5,
+    backgroundColor: '#4a90e2',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    flex: 1,
+    marginRight: 5,
   },
   cancelButton: {
-    backgroundColor: '#ccc', paddingVertical: 10,
-    paddingHorizontal: 20, borderRadius: 5, flex: 1, marginLeft: 5,
+    backgroundColor: '#ccc',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    flex: 1,
+    marginLeft: 5,
   },
   closeButton: {
-    backgroundColor: '#4a90e2', paddingVertical: 10,
-    paddingHorizontal: 20, borderRadius: 5, flex: 1, marginLeft: 5,
+    backgroundColor: '#4a90e2',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    flex: 1,
+    marginLeft: 5,
   },
   buttonText: { color: '#fff', textAlign: 'center', fontWeight: 'bold' },
   inquiryList: { padding: 10 },
@@ -538,14 +790,103 @@ const styles = StyleSheet.create({
   detailValue: {
     flex: 1, flexWrap: 'wrap',
   },
+  historyBox: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    width: '90%',
+    maxHeight: '80%',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    alignSelf: 'center',
+    marginHorizontal: 20,
+  },
   historyHeader: {
-    paddingVertical: 10,
-    paddingHorizontal: 15,
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#f8f9fa',
+    borderTopLeftRadius: 15,
+    borderTopRightRadius: 15,
   },
   historyTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom:5,
+    textAlign: 'center',
+  },
+  inquiryContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  inquiryInfo: {
+    flex: 1,
+  },
+  historyButton: {
+    backgroundColor: '#4a90e2',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 5,
+    marginLeft: 10,
+  },
+  historyButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  historyContent: {
+    padding: 20,
+  },
+  historyItem: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  historyRow: {
+    flexDirection: 'row',
+    marginBottom: 10,
+    alignItems: 'flex-start',
+  },
+  historyLabel: {
+    width: 130,
+    fontWeight: 'bold',
+    color: '#333',
+    fontSize: 14,
+  },
+  historyValue: {
+    flex: 1,
+    color: '#666',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  historyDivider: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: 15,
+  },
+  historyFooter: {
+    padding: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    backgroundColor: '#f8f9fa',
+    borderBottomLeftRadius: 15,
+    borderBottomRightRadius: 15,
+  },
+  closeHistoryButton: {
+    backgroundColor: '#4a90e2',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  closeHistoryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

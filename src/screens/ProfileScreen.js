@@ -21,7 +21,7 @@ const ProfileScreen = () => {
                 source={
                   userData?.studentimage?.image_url
                     ? { uri: userData.studentimage.image_url }
-                    : require('../../assets/finewood.png') // fallback avatar
+                    : require('../../assets/AGlobia.png') // fallback avatar
                 }
                 style={styles.profileImage}
                     resizeMode="contain"

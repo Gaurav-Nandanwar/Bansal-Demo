@@ -12,7 +12,7 @@ export const AuthProvider = ({ children }) => {
 
     try {
       const response = await axios.post(
-        'https://api.stpl.cloud/login', // Replace with your actual endpoint
+        'https://api.stpl.cloud/login', 
         { student_id: userData.student_id }
       );
 
