@@ -1,9 +1,23 @@
 import React, { useState } from 'react';
-import {View, Text, TextInput, TouchableOpacity, StyleSheet, Image,Alert, Modal, Platform, ActivityIndicator} from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  Alert,
+  Modal,
+  Platform,
+  ActivityIndicator,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
-import { useAuth } from '../context/AuthContext'; // 👈 import useAuth
+import { useAuth } from '../context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -12,9 +26,10 @@ const LoginScreen = () => {
   const [selectedOption, setSelectedOption] = useState('email');
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const navigation = useNavigation();
-  const { setUserData } = useAuth(); // 👈 use context
+  const { setUserData } = useAuth();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -24,16 +39,48 @@ const LoginScreen = () => {
 
     try {
       setLoading(true);
+      console.log('Attempting login with:', { email, password });
+      
       const response = await axios.post(
-        'https://finewood-erp.in/finewoodProject/webApi/user/login/',
-        { username: email, password }
+        'https://bansal.steponetechnologies.com//bansalProject/appApi/user/login/',
+        {
+          username: email,
+          password: password
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        }
       );
-      setLoading(false);
 
-      if (response.data.statusCode === '01') {
+      setLoading(false);
+      console.log('API Response:', JSON.stringify(response.data, null, 2));
+
+      if (response.data.statusCode === "01" && response.data.msg === "Login Successful") {
         const userDetails = response.data.userProfile.userDetails;
-        setUserData(userDetails); // 👈 store in context
-        Alert.alert('Login Successful', `Welcome, ${userDetails.employeename}`);
+        
+        // Save user details to AsyncStorage
+        try {
+          await AsyncStorage.setItem('userDetails', JSON.stringify(userDetails));
+          
+          // Console logs for saved user details
+          console.log('=== Saved User Details ===');
+          console.log('User Role:', userDetails.userRole);
+          console.log('User ID:', userDetails.user_id);
+          console.log('ID:', userDetails.id);
+          console.log('Student Name:', userDetails.studentName);
+          console.log('Student Email:', userDetails.studentEmail);
+          console.log('Mobile No:', userDetails.mobileNo);
+          console.log('=======================');
+
+        } catch (storageError) {
+          console.error('Error saving user details:', storageError);
+        }
+
+        setUserData(userDetails);
+        Alert.alert('Login Successful', `Welcome, ${userDetails.studentName}`);
         navigation.replace('Dashboard');
       } else {
         Alert.alert('Login Failed', response.data.msg || 'Invalid credentials');
@@ -41,7 +88,23 @@ const LoginScreen = () => {
     } catch (error) {
       setLoading(false);
       console.error('Login Error:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again later.');
+      
+      if (error.response) {
+        console.error('Error Response Data:', error.response.data);
+        console.error('Error Response Status:', error.response.status);
+        console.error('Error Response Headers:', error.response.headers);
+        
+        Alert.alert(
+          'Login Failed', 
+          error.response.data.msg || 'Invalid credentials. Please check your email and password.'
+        );
+      } else if (error.request) {
+        console.error('Error Request:', error.request);
+        Alert.alert('Network Error', 'No response from server. Please check your internet connection.');
+      } else {
+        console.error('Error Message:', error.message);
+        Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      }
     }
   };
 
@@ -57,7 +120,13 @@ const LoginScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Image source={require('../../assets/finewood.png')} style={styles.logo} />
+      <TouchableOpacity 
+        style={styles.schoolSwitchButton}
+        onPress={() => navigation.navigate('SelectSchool')}
+      >
+        <MaterialIcons name="school" size={24} color="#5F83C7" />
+      </TouchableOpacity>
+      <Image source={require('../../assets/school.png')} style={styles.logo} />
       <Text style={styles.title}>User Login</Text>
 
       <TextInput
@@ -69,13 +138,25 @@ const LoginScreen = () => {
         autoCapitalize="none"
       />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Enter password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+      <View style={styles.passwordContainer}>
+        <TextInput
+          style={[styles.input, styles.passwordInput]}
+          placeholder="Enter password"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!showPassword}
+        />
+        <TouchableOpacity 
+          style={styles.eyeButton}
+          onPress={() => setShowPassword(!showPassword)}
+        >
+          <MaterialIcons 
+            name={showPassword ? "visibility" : "visibility-off"} 
+            size={24} 
+            color="#666"
+          />
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Log In</Text>}
@@ -126,6 +207,26 @@ const LoginScreen = () => {
 export default LoginScreen;
 
 const styles = StyleSheet.create({
+  schoolSwitchButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 20,
+    right: 20,
+    backgroundColor: '#fff',
+    width: 45,
+    height: 45,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    zIndex: 1000,
+  },
   container: {
     flex: 1,
     backgroundColor: '#f2f4f7',
@@ -218,5 +319,22 @@ const styles = StyleSheet.create({
   cancelText: {
     color: '#0066cc',
     fontSize: 16,
+  },
+  passwordContainer: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  passwordInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 15,
+    height: '100%',
+    justifyContent: 'center',
+    padding: 10,
   },
 });

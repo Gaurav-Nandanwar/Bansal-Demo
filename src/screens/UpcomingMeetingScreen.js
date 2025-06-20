@@ -96,13 +96,18 @@ const dummyMeetings = [
   },
 ];
 
+const CustomHeader = () => (
+  <View style={styles.customHeader}>
+    <Text style={styles.headerTitle}>Upcoming Meetings</Text>
+  </View>
+);
+
 const UpcomingMeetingScreen = () => {
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
-        <View style={styles.headerContainer}>
-          <Text style={styles.headerText}>Upcoming Meetings</Text>
-        </View>
+        <CustomHeader />
+
         <ScrollView contentContainerStyle={styles.content}>
           {dummyMeetings.map((meeting) => (
             <TouchableOpacity
@@ -126,25 +131,30 @@ const UpcomingMeetingScreen = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    // backgroundColor: '#E8F1FA',
+    backgroundColor: '#fff',
   },
-  headerContainer: {
+  customHeader: {
+    height: 60,
     backgroundColor: '#5F83C7',
-    width: '100%',
-    paddingVertical: 12,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
-  headerText: {
+  headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    textAlign: 'center',
-    color: '#FFFFFF',
+    color: '#fff',
+    textAlign: 'left',
   },
   content: {
     paddingHorizontal: 10,
     paddingVertical: 10,
-    flexGrow: 1, // Ensures ScrollView content takes full height when needed
+    flexGrow: 1,
   },
   card: {
     backgroundColor: '#F1F8FF',

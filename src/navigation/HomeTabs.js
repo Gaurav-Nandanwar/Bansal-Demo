@@ -1,10 +1,12 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MaterialIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+
 
 import HomeScreen from '../screens/HomeScreen';
-import LocationScreen from '../screens/LocationScreen';
-import UpcomingMeetingScreen from '../screens/UpcomingMeetingScreen';
+import EventScreen from '../screens/EventScreen';
+import AssignmentScreen from '../screens/AssignmentScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
@@ -38,22 +40,22 @@ const HomeTabs = () => {
         }}
       />
       <Tab.Screen
-        name="LocationTab"
-        component={LocationScreen}
+        name="Assignments"
+        component={AssignmentScreen}
         options={{
-          tabBarLabel: 'Location',
+          tabBarLabel: 'Assignments',
           tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="map-marker" color={color} size={24} />
+            <MaterialCommunityIcons name="book-edit" size={24} color={color} />
           ),
         }}
       />
       <Tab.Screen
-        name="Upcoming Meeting"
-        component={UpcomingMeetingScreen}
+        name="Events"
+        component={EventScreen}
         options={{
-          tabBarLabel: 'Meetings',
+          tabBarLabel: 'Events',
           tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="face-agent" color={color} size={24} />
+            <MaterialCommunityIcons name="bell-alert-outline" size={24} color={color} />
           ),
         }}
       />

@@ -6,6 +6,8 @@ import DrawerNavigator from './src/navigation/DrawerNavigator';
 import 'react-native-gesture-handler';
 import { AuthProvider } from './src/context/AuthContext';
 import useLocationPermission from './src/hooks/useLocationPermission';
+import SelectSchoolScreen from './src/screens/SelectSchoolScreen';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -15,7 +17,9 @@ const App = () => {
   return (
     <AuthProvider>
       <NavigationContainer>
-        <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
+        <Stack.Navigator initialRouteName="SelectSchool" screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="SelectSchool" component={SelectSchoolScreen} />
+
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Dashboard" component={DrawerNavigator} />
         </Stack.Navigator>
