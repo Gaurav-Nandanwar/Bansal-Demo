@@ -3,8 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MaterialIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import HomeScreen from '../screens/HomeScreen';
-import LocationScreen from '../screens/LocationScreen';
-import UpcomingMeetingScreen from '../screens/UpcomingMeetingScreen';
+import QrScreen from '../screens/QrScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
@@ -38,16 +37,16 @@ const HomeTabs = () => {
         }}
       />
       <Tab.Screen
-        name="LocationTab"
-        component={LocationScreen}
+        name="QrTab"
+        component={QrScreen}
         options={{
-          tabBarLabel: 'Location',
+          tabBarLabel: 'QR Code',
           tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="map-marker" color={color} size={24} />
+            <MaterialIcons name="qrcode" color={color} size={24} />
           ),
         }}
       />
-      <Tab.Screen
+      {/* <Tab.Screen
         name="Upcoming Meeting"
         component={UpcomingMeetingScreen}
         options={{
@@ -56,7 +55,7 @@ const HomeTabs = () => {
             <MaterialIcons name="face-agent" color={color} size={24} />
           ),
         }}
-      />
+      /> */}
       <Tab.Screen
         name="ProfileTab"
         component={ProfileScreen}

@@ -1,34 +1,50 @@
-import React from 'react';
-import {
-  createDrawerNavigator,
-  DrawerContentScrollView,
-  DrawerItemList,
-} from '@react-navigation/drawer';
-import {
-  View,
-  StyleSheet,
-  TouchableOpacity,
-  Text,
-  Image,
-  Alert,
-} from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {createDrawerNavigator,DrawerContentScrollView,DrawerItemList,} from '@react-navigation/drawer';
+import {View,StyleSheet,TouchableOpacity,Text,Image,Alert,} from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { DrawerItem } from '@react-navigation/drawer';
 
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import HomeTabs from '../navigation/HomeTabs';
-import VisitScreen from '../screens/VisitScreen';
-import TodaysVisitScreen from '../screens/TodaysVisitScreen';
-import InquiryScreen from '../screens/InquiryScreen';
-import TodaysInquiryScreen from '../screens/TodaysInquiryScreen';
+import TimetableScreen from '../screens/TimetableScreen';
+import AttendanceScreen from '../screens/AttendanceScreen';
+import AssignmentScreen from '../screens/AssignmentScreen';
+import WebSocketScreen from '../screens/WebSocketScreen';
+import ExamAssessmentScreen from '../screens/ExamAssessmentScreen';
+import ProfileScreen from '../screens/ProfileScreen';
+import LeaveForm from '../screens/LeaveForm';
+import AuthorityScreen from '../screens/AuthorityScreen';
+import LeaveDashboard from '../screens/LeaveDashboard';
+import Subjectwise_Attendance from '../screens/Subjectwise_Attendance';
+import ParentCommunication from '../screens/ParentCommunication';
+import ParentChatDetail from '../screens/ParentChatDetail';
+import SendAnnouncement from '../screens/SendAnnouncement';
+import ExamWise_Attendance from '../screens/ExamWise_Attendance';
 
 const Drawer = createDrawerNavigator();
 
 const CustomDrawerContent = (props) => {
   const navigation = useNavigation();
-  const { userData, setUserData } = useAuth();
+  const { userData, logout } = useAuth();
+  const [schoolLogo, setSchoolLogo] = useState(null);
+
+  useEffect(() => {
+    const loadSchoolLogo = async () => {
+      try {
+        const schoolStr = await AsyncStorage.getItem('selectedSchool');
+        if (schoolStr) {
+          const school = JSON.parse(schoolStr);
+          if (school?.school_logo?.image_url) {
+            setSchoolLogo(school.school_logo.image_url);
+          }
+        }
+      } catch (e) {}
+    };
+    loadSchoolLogo();
+  }, []);
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -36,16 +52,22 @@ const CustomDrawerContent = (props) => {
       {
         text: 'Logout',
         style: 'destructive',
-        onPress: () => {
-          setUserData(null);
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Login' }],
-          });
+        onPress: async () => {
+          await logout();
+          navigation.navigate('Login');
         },
       },
     ]);
   };
+
+  let profileImageSource = null;
+  if (userData?.staff_image_url) {
+    profileImageSource = { uri: userData.staff_image_url };
+  } else if (schoolLogo) {
+    profileImageSource = { uri: schoolLogo };
+  } else {
+    profileImageSource = require('../../assets/teacher.png');
+  }
 
   return (
     <DrawerContentScrollView
@@ -54,14 +76,9 @@ const CustomDrawerContent = (props) => {
     >
       <View style={styles.profileContainer}>
         <Image
-          source={
-            userData?.studentimage?.image_url
-              ? { uri: userData.studentimage.image_url }
-              : require('../../assets/AGlobia.png') // fallback avatar
-          }
+          source={profileImageSource}
           style={styles.profileImage}
-              resizeMode="contain"
-
+          resizeMode="contain"
         />
       </View>
 
@@ -75,37 +92,94 @@ const CustomDrawerContent = (props) => {
           onPress={() => props.navigation.navigate('Home')}
         />
         <DrawerItem
-          label="Visit"
+          label="Timetable"
           icon={({ color, size }) => (
             <MaterialCommunityIcons name="nature-people" size={size} color={'white'} />
           )}
           labelStyle={styles.drawerLabel}
-          onPress={() => props.navigation.navigate('Visit')}
+          onPress={() => props.navigation.navigate('Timetable')}
         />
         <DrawerItem
-          label="TodaysVisit"
+          label="Attendance"
           icon={({ color, size }) => (
             <MaterialCommunityIcons name="calendar-clock" size={size} color={'white'} />
           )}
           labelStyle={styles.drawerLabel}
-          onPress={() => props.navigation.navigate('TodaysVisit')}
+          onPress={() => props.navigation.navigate('Attendance')}
         />
+        {/* <DrawerItem
+          label="Subject-Wise Attendance"
+          icon={({ color, size }) => (
+            <MaterialCommunityIcons name="android-messages" size={size} color={'white'} />
+          )}
+          labelStyle={styles.drawerLabel}
+          onPress={() => props.navigation.navigate('Subject-Wise Attendance')}
+        /> */}
         <DrawerItem
-          label="Inquiry"
+          label="Assignment"
           icon={({ color, size }) => (
             <MaterialCommunityIcons name="application" size={size} color={'white'} />
           )}
           labelStyle={styles.drawerLabel}
-          onPress={() => props.navigation.navigate('Inquiry')}
+          onPress={() => props.navigation.navigate('Assignment')}
         />
         <DrawerItem
-          label="TodaysInquiry"
+          label="ExamAssessment"
           icon={({ color, size }) => (
-            <MaterialCommunityIcons name="account-circle-outline" size={size} color={'white'} />
+            <MaterialCommunityIcons name="book" size={size} color={'white'} />
           )}
           labelStyle={styles.drawerLabel}
-          onPress={() => props.navigation.navigate('TodaysInquiry')}
-        /> 
+          onPress={() => props.navigation.navigate('ExamAssessment')}
+        />
+        <DrawerItem
+          label="Leave Form"
+          icon={({ color, size }) => (
+            <MaterialCommunityIcons name="account-circle" size={size} color={'white'} />
+          )}
+          labelStyle={styles.drawerLabel}
+          onPress={() => props.navigation.navigate('Leave Form')}
+        />
+        <DrawerItem
+          label="Authority"
+          icon={({ color, size }) => (
+            <MaterialCommunityIcons name="android-messages" size={size} color={'white'} />
+          )}
+          labelStyle={styles.drawerLabel}
+          onPress={() => props.navigation.navigate('Authority')}
+        />
+        <DrawerItem
+          label="Leave Dashboard"
+          icon={({ color, size }) => (
+            <MaterialCommunityIcons name="android-messages" size={size} color={'white'} />
+          )}
+          labelStyle={styles.drawerLabel}
+          onPress={() => props.navigation.navigate('Leave Dashboard')}
+        />
+        <DrawerItem
+          label="Parent Communication"
+          icon={({ color, size }) => (
+            <MaterialCommunityIcons name="application" size={size} color={'white'} />
+          )}
+          labelStyle={styles.drawerLabel}
+          onPress={() => props.navigation.navigate('Parent Communication')}
+        />
+        <DrawerItem
+          label="Send Announcement"
+          icon={({ color, size }) => (
+            <MaterialCommunityIcons name="android-messages" size={size} color={'white'} />
+          )}
+          labelStyle={styles.drawerLabel}
+          onPress={() => props.navigation.navigate('Send Announcement')}
+        />
+        <DrawerItem
+          label="Exam Wise Attendance"
+          icon={({ color, size }) => (
+            <MaterialCommunityIcons name="android-messages" size={size} color={'white'} />
+          )}
+          labelStyle={styles.drawerLabel}
+          onPress={() => props.navigation.navigate('Exam Wise Attendance')}
+        />
+        
       </View>
 
       <View style={styles.logoutContainer}>
@@ -130,10 +204,22 @@ const DrawerNavigator = () => {
       drawerContent={(props) => <CustomDrawerContent {...props} />}
     >
       <Drawer.Screen name="Home" component={HomeTabs} />
-      <Drawer.Screen name="Visit" component={VisitScreen} />
-      <Drawer.Screen name="TodaysVisit" component={TodaysVisitScreen} />
-      <Drawer.Screen name="Inquiry" component={InquiryScreen} />
-      <Drawer.Screen name="TodaysInquiry" component={TodaysInquiryScreen} />
+      <Drawer.Screen name="Timetable" component={TimetableScreen} />
+      <Drawer.Screen name="Attendance" component={AttendanceScreen} />
+      <Drawer.Screen name="Assignment" component={AssignmentScreen} />
+      <Drawer.Screen name="WebSocket" component={WebSocketScreen} />
+      <Drawer.Screen name="ExamAssessment" component={ExamAssessmentScreen} />
+      <Drawer.Screen name="Profile" component={ProfileScreen} />
+      <Drawer.Screen name="Leave Form" component={LeaveForm} />
+      <Drawer.Screen name="Authority" component={AuthorityScreen} />
+      <Drawer.Screen name="Leave Dashboard" component={LeaveDashboard} />
+      <Drawer.Screen name="Subject-Wise Attendance" component={Subjectwise_Attendance} />
+      <Drawer.Screen name="Parent Communication" component={ParentCommunication} />
+      <Drawer.Screen name="ParentChatDetail" component={ParentChatDetail} />
+      <Drawer.Screen name="Send Announcement" component={SendAnnouncement} />
+      <Drawer.Screen name="Exam Wise Attendance" component={ExamWise_Attendance} />
+
+
 
     </Drawer.Navigator>
   );
@@ -185,7 +271,7 @@ const styles = StyleSheet.create({
   menuContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    bottom: 40
+    bottom: 20
   },
   logoutContainer: {
     borderTopWidth: 1,

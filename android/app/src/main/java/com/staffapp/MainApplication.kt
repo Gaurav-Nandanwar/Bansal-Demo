@@ -1,4 +1,4 @@
-package com.bansaldemo
+package com.staffapp
 
 import android.app.Application
 import com.facebook.react.PackageList
